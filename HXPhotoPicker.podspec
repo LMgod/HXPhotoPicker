@@ -10,7 +10,7 @@ Pod::Spec.new do |s|
 
   s.platform     = :ios, "8.0"
   s.ios.deployment_target = "8.0"
-  s.source       = { :git => "https://github.com/SilenceLove/HXPhotoPicker.git", :tag => "#{s.version}" }
+  s.source       = { :git => "https://github.com/LMgod/HXPhotoPicker.git", :tag => "#{s.version}" }
 
   s.framework    = 'UIKit','Photos','PhotosUI'
   s.requires_arc = true
