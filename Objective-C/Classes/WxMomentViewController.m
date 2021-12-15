@@ -92,6 +92,7 @@
         _photoManager.configuration.localFileName = @"hx_WxMomentPhotoModels";
         _photoManager.configuration.showOriginalBytes = YES;
         _photoManager.configuration.showOriginalBytesLoading = YES;
+        _photoManager.configuration.languageType = HXPhotoLanguageTypeAr;
 //        _photoManager.configuration.clarityScale = 2.f;
         HXWeakSelf
         _photoManager.viewWillAppear = ^(UIViewController *viewController) {

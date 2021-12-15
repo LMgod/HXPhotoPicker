@@ -77,7 +77,7 @@
     }
     NSString *albumName;
     HXPhotoLanguageType type = [HXPhotoCommon photoCommon].languageType;
-    if (type == HXPhotoLanguageTypeSys) {
+    if (type == HXPhotoLanguageTypeSys || type == HXPhotoLanguageTypeAr) {
         albumName = collection.localizedTitle;
     }else {
         if ([collection.localizedTitle isEqualToString:@"最近项目"] ||

@@ -558,6 +558,7 @@
             HXPhotoLanguageType type = [HXPhotoCommon photoCommon].languageType;
             switch (type) {
                 case HXPhotoLanguageTypeSc :
+                case HXPhotoLanguageTypeAr :
                 case HXPhotoLanguageTypeTc :
                 case HXPhotoLanguageTypeJa : {
                     // 中 / 日 / 繁
@@ -590,6 +591,7 @@
             HXPhotoLanguageType type = [HXPhotoCommon photoCommon].languageType;
             switch (type) {
                 case HXPhotoLanguageTypeSc :
+                case HXPhotoLanguageTypeAr :
                 case HXPhotoLanguageTypeTc :
                 case HXPhotoLanguageTypeJa : {
                     // 中 / 日 / 繁

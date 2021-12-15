@@ -122,6 +122,8 @@
         locale = [[NSLocale alloc] initWithLocaleIdentifier:@"ko"];
     }else if (type == HXPhotoLanguageTypeEn) {
         locale = [[NSLocale alloc] initWithLocaleIdentifier:@"en"];
+    }else if (type == HXPhotoLanguageTypeAr) {
+        locale = [[NSLocale alloc] initWithLocaleIdentifier:@"ar"];
     }
     if (locale) {
         [dateday setLocale:locale];
@@ -187,6 +189,9 @@
             break;
         case HXPhotoLanguageTypeKo:
             locale = [[NSLocale alloc] initWithLocaleIdentifier:@"ko"];
+            break;
+        case HXPhotoLanguageTypeAr:
+            locale = [[NSLocale alloc] initWithLocaleIdentifier:@"ar"];
             break;
         default:
             break;

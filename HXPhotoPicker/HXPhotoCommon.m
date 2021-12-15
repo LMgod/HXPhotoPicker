@@ -151,6 +151,9 @@ static id instance;
             case HXPhotoLanguageTypeSc : {
                 language = @"zh-Hans"; // 简体中文
             } break;
+            case HXPhotoLanguageTypeAr : {
+                language = @"ar"; // 阿拉伯语
+            } break;
             case HXPhotoLanguageTypeTc : {
                 language = @"zh-Hant"; // 繁體中文
             } break;
