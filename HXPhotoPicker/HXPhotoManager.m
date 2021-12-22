@@ -890,7 +890,7 @@
         }
     }
     if (model.subType == HXPhotoModelMediaSubTypeVideo) {
-        if (round(model.videoDuration) < self.configuration.videoMinimumSelectDuration) { 
+        if (round(model.videoDuration) < self.configuration.videoMinimumSelectDuration + 0.1) {
             return [NSString stringWithFormat:[NSBundle hx_localizedStringForKey:@"视频少于%ld秒，无法选择"], self.configuration.videoMinimumSelectDuration];
         }else if (round(model.videoDuration) >= self.configuration.videoMaximumSelectDuration + 1) {
             if (self.configuration.selectVideoBeyondTheLimitTimeAutoEdit &&

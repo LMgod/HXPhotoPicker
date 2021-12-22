@@ -252,6 +252,8 @@
 }
 - (IBAction)goAlbum:(id)sender {
     self.manager.configuration.clarityScale = self.clarityText.text.floatValue;
+    self.manager.configuration.videoMinimumSelectDuration = 5;
+    self.manager.configuration.videoMinimumDuration = 5;
     if (self.tintColor.selectedSegmentIndex == 0) {
         self.manager.configuration.themeColor = self.view.tintColor;
         self.manager.configuration.cellSelectedTitleColor = nil;
