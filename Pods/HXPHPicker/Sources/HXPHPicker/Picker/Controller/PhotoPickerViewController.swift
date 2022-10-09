@@ -69,12 +69,12 @@ public class PhotoPickerViewController: BaseViewController {
         }
         if config.allowAddCamera {
             collectionView.register(
-                PickerCamerViewCell.self,
+                PickerCameraViewCell.self,
                 forCellWithReuseIdentifier:
-                    NSStringFromClass(PickerCamerViewCell.classForCoder())
+                    NSStringFromClass(PickerCameraViewCell.classForCoder())
             )
         }
-        if config.allowAddLimit && AssetManager.authorizationStatusIsLimited() {
+        if #available(iOS 14.0, *), config.allowAddLimit {
             collectionView.register(
                 PhotoPickerLimitCell.self,
                 forCellWithReuseIdentifier:
@@ -190,7 +190,7 @@ public class PhotoPickerViewController: BaseViewController {
         cell.config = config.limitCell
         return cell
     }
-    var cameraCell: PickerCamerViewCell {
+    var cameraCell: PickerCameraViewCell {
         let indexPath: IndexPath
         if config.sort == .asc {
             indexPath = IndexPath(item: assets.count, section: 0)
@@ -199,10 +199,10 @@ public class PhotoPickerViewController: BaseViewController {
         }
         let cell = collectionView.dequeueReusableCell(
             withReuseIdentifier: NSStringFromClass(
-                PickerCamerViewCell.classForCoder()
+                PickerCameraViewCell.classForCoder()
             ),
             for: indexPath
-        ) as! PickerCamerViewCell
+        ) as! PickerCameraViewCell
         cell.config = config.cameraCell
         return cell
     }
@@ -242,6 +242,10 @@ public class PhotoPickerViewController: BaseViewController {
     
     // MARK: UIScrollView滚动相关
     var scrollToTop = false
+    var targetOffsetY: CGFloat = 0
+    var didChangeCellLoadMode: Bool = false
+    var scrollEndReload: Bool = false
+    var scrollReachDistance = false
     
     // MARK: function
     public override func viewDidLoad() {
@@ -280,7 +284,11 @@ public class PhotoPickerViewController: BaseViewController {
         var collectionTop: CGFloat = UIDevice.navigationBarHeight
         if let nav = navigationController {
             if nav.modalPresentationStyle == .fullScreen && UIDevice.isPortrait {
-                collectionTop = UIDevice.navigationBarHeight
+                if UIApplication.shared.isStatusBarHidden {
+                    collectionTop = nav.navigationBar.height + UIDevice.generalStatusBarHeight
+                }else {
+                    collectionTop = UIDevice.navigationBarHeight
+                }
             }else {
                 collectionTop = nav.navigationBar.height
             }
@@ -645,24 +653,21 @@ extension PhotoPickerViewController {
     }
     func updateCellSelectedTitle() {
         guard let picker = pickerController else { return }
-        for visibleCell in collectionView.visibleCells {
-            if visibleCell is PhotoPickerBaseViewCell,
-               let photoAsset = (visibleCell as? PhotoPickerBaseViewCell)?.photoAsset {
-                let cell = visibleCell as! PhotoPickerBaseViewCell
-                if !photoAsset.isSelected &&
-                    config.cell.showDisableMask &&
-                    picker.config.maximumSelectedVideoFileSize == 0  &&
-                    picker.config.maximumSelectedPhotoFileSize == 0 {
-                    cell.canSelect = picker.canSelectAsset(
-                        for: photoAsset,
-                        showHUD: false
-                    )
-                }
-                cell.updateSelectedState(
-                    isSelected: photoAsset.isSelected,
-                    animated: false
+        for case let cell as PhotoPickerBaseViewCell in collectionView.visibleCells {
+            guard let photoAsset = cell.photoAsset else { continue }
+            if !photoAsset.isSelected &&
+                config.cell.showDisableMask &&
+                picker.config.maximumSelectedVideoFileSize == 0  &&
+                picker.config.maximumSelectedPhotoFileSize == 0 {
+                cell.canSelect = picker.canSelectAsset(
+                    for: photoAsset,
+                    showHUD: false
                 )
             }
+            cell.updateSelectedState(
+                isSelected: photoAsset.isSelected,
+                animated: false
+            )
         }
     }
     

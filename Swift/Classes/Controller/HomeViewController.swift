@@ -25,7 +25,6 @@ class HomeViewController: UITableViewController {
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
         #if canImport(GDPerformanceView_Swift)
-        PerformanceMonitor.shared().pause()
         PerformanceMonitor.shared().start()
         #endif
     }
@@ -68,6 +67,7 @@ class HomeViewController: UITableViewController {
                 return
             }
         }
+//        present(rowType.controller, animated: true)
         navigationController?.pushViewController(rowType.controller, animated: true)
     }
 
@@ -131,7 +131,14 @@ extension HomeViewController {
                     return EditorConfigurationViewController(style: .grouped)
                 }
             case .camera:
-                return CameraController(config: .init(), type: .all)
+                let config = CameraConfiguration()
+                config.position = .front
+                #if canImport(GPUImage)
+                config.defaultFilterIndex = 0
+                config.photoFilters = FilterTools.filters()
+                config.videoFilters = FilterTools.filters()
+                #endif
+                return CameraController(config: config, type: .all)
             }
         }
     }

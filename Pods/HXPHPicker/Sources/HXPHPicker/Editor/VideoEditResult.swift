@@ -11,7 +11,11 @@ import AVFoundation
 public struct VideoEditResult {
     
     /// 编辑后的视频地址
-    public let editedURL: URL
+    public var editedURL: URL {
+        urlConfig.url
+    }
+    
+    public let urlConfig: EditorURLConfig
     
     /// 编辑后的视频封面
     public let coverImage: UIImage?
@@ -24,6 +28,9 @@ public struct VideoEditResult {
     
     /// 视频时长 秒
     public let videoDuration: TimeInterval
+    
+    /// 是否有原视频音乐
+    public let hasOriginalSound: Bool
     
     /// 原视频音量
     public let videoSoundVolume: Float
@@ -41,20 +48,22 @@ public struct VideoEditResult {
     let sizeData: VideoEditedCropSize?
     
     init(
-        editedURL: URL,
+        urlConfig: EditorURLConfig,
         cropData: VideoCropData?,
+        hasOriginalSound: Bool,
         videoSoundVolume: Float,
         backgroundMusicURL: URL?,
         backgroundMusicVolume: Float,
         sizeData: VideoEditedCropSize?
     ) {
-        editedFileSize = editedURL.fileSize
+        self.urlConfig = urlConfig
+        editedFileSize = urlConfig.url.fileSize
         
-        videoDuration = PhotoTools.getVideoDuration(videoURL: editedURL)
+        videoDuration = PhotoTools.getVideoDuration(videoURL: urlConfig.url)
         videoTime = PhotoTools.transformVideoDurationToString(duration: videoDuration)
-        coverImage = PhotoTools.getVideoThumbnailImage(videoURL: editedURL, atTime: 0.1)
-        self.editedURL = editedURL
+        coverImage = PhotoTools.getVideoThumbnailImage(videoURL: urlConfig.url, atTime: 0.1)
         self.cropData = cropData
+        self.hasOriginalSound = hasOriginalSound
         self.videoSoundVolume = videoSoundVolume
         self.backgroundMusicURL = backgroundMusicURL
         self.backgroundMusicVolume = backgroundMusicVolume
@@ -110,16 +119,18 @@ struct VideoEditedCropSize: Codable {
     let cropData: PhotoEditCropData?
     let brushData: [PhotoEditorBrushData]
     let stickerData: EditorStickerData?
+    let filter: VideoEditorFilter?
 }
 
 extension VideoEditResult: Codable {
     
     enum CodingKeys: String, CodingKey {
-        case editedURL
+        case urlConfig
         case coverImage
         case editedFileSize
         case videoTime
         case videoDuration
+        case hasOriginalSound
         case videoSoundVolume
         case backgroundMusicURL
         case backgroundMusicVolume
@@ -128,7 +139,7 @@ extension VideoEditResult: Codable {
     }
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        editedURL = try container.decode(URL.self, forKey: .editedURL)
+        urlConfig = try container.decode(EditorURLConfig.self, forKey: .urlConfig)
         if let coverImageData = try container.decodeIfPresent(Data.self, forKey: .coverImage) {
             coverImage = try NSKeyedUnarchiver.unarchiveTopLevelObjectWithData(coverImageData) as? UIImage
         }else {
@@ -137,6 +148,7 @@ extension VideoEditResult: Codable {
         editedFileSize = try container.decode(Int.self, forKey: .editedFileSize)
         videoTime = try container.decode(String.self, forKey: .videoTime)
         videoDuration = try container.decode(TimeInterval.self, forKey: .videoDuration)
+        hasOriginalSound = try container.decode(Bool.self, forKey: .hasOriginalSound)
         videoSoundVolume = try container.decode(Float.self, forKey: .videoSoundVolume)
         backgroundMusicURL = try container.decodeIfPresent(URL.self, forKey: .backgroundMusicURL)
         backgroundMusicVolume = try container.decode(Float.self, forKey: .backgroundMusicVolume)
@@ -146,10 +158,11 @@ extension VideoEditResult: Codable {
     
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(editedURL, forKey: .editedURL)
+        try container.encode(urlConfig, forKey: .urlConfig)
         try container.encode(editedFileSize, forKey: .editedFileSize)
         try container.encode(videoTime, forKey: .videoTime)
         try container.encode(videoDuration, forKey: .videoDuration)
+        try container.encode(hasOriginalSound, forKey: .hasOriginalSound)
         try container.encode(videoSoundVolume, forKey: .videoSoundVolume)
         try container.encode(backgroundMusicURL, forKey: .backgroundMusicURL)
         try container.encode(backgroundMusicVolume, forKey: .backgroundMusicVolume)

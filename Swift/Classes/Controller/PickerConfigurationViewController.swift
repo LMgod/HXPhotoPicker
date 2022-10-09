@@ -12,15 +12,8 @@ class PickerConfigurationViewController: UITableViewController {
     
     var config: PickerConfiguration = .init()
     var showOpenPickerButton: Bool = true
-    var presentStyle: UIModalPresentationStyle = .fullScreen
     override func viewDidLoad() {
         super.viewDidLoad()
-        if #available(iOS 13.0, *) {
-            presentStyle = .automatic
-        } else {
-            // Fallback on earlier versions
-            presentStyle = .fullScreen
-        }
         navigationItem.title = "Picker"
         
         tableView.cellLayoutMarginsFollowReadableWidth = true
@@ -37,8 +30,6 @@ class PickerConfigurationViewController: UITableViewController {
     @objc func openPickerController() {
         if showOpenPickerButton {
             let vc = PhotoPickerController.init(config: config)
-            // 全屏情况下才可以禁止旋转
-            vc.modalPresentationStyle = presentStyle
             vc.pickerDelegate = self
             vc.autoDismiss = false
             present(vc, animated: true, completion: nil)
@@ -208,7 +199,7 @@ extension PickerConfigurationViewController {
     }
     func presentStyleAction(_ indexPath: IndexPath) {
         if #available(iOS 13.0, *) {
-            presentStyle = presentStyle == .fullScreen ? .automatic : .fullScreen
+            config.modalPresentationStyle = config.modalPresentationStyle == .fullScreen ? .automatic : .fullScreen
         }
         self.tableView.reloadRows(at: [indexPath], with: .fade)
     }
@@ -222,12 +213,16 @@ extension PickerConfigurationViewController {
             "korean",
             "english",
             "thai",
-            "indonesia"
+            "indonesia",
+            "vietnamese",
+            "russian",
+            "german",
+            "french"
         ]
         for title in titles {
             alert.addAction(UIAlertAction.init(title: title, style: .default, handler: { [weak self] (action) in
                 guard let self = self else { return }
-                self.config.languageType = LanguageType.init(rawValue: titles.firstIndex(of: action.title!)!)!
+                self.config.languageType = LanguageType(rawValue: titles.firstIndex(of: action.title!)!)!
                 self.tableView.reloadRows(at: [indexPath], with: .fade)
             }))
         }
@@ -529,7 +524,7 @@ extension PickerConfigurationViewController {
             }
         }
         if rowType is ViewControllerOptionsRowType {
-            return presentStyle == .fullScreen ? "true" : "false"
+            return config.modalPresentationStyle == .fullScreen ? "true" : "false"
         }
         return ""
     }
@@ -775,6 +770,14 @@ extension LanguageType {
             return "泰语"
         case .indonesia:
             return "印尼语"
+        case .vietnamese:
+            return "越南语"
+        case .russian:
+            return "俄语"
+        case .german:
+            return "德语"
+        case .french:
+            return "法语"
         }
     }
 }

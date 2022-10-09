@@ -53,9 +53,9 @@ extension PhotoPickerController {
     }
     func cancelCallback() {
         #if HXPICKER_ENABLE_EDITOR
-        for photoAsset in editedPhotoAssetArray {
-            photoAsset.photoEdit = photoAsset.initialPhotoEdit
-            photoAsset.videoEdit = photoAsset.initialVideoEdit
+        editedPhotoAssetArray.forEach {
+            $0.photoEdit = $0.initialPhotoEdit
+            $0.videoEdit = $0.initialVideoEdit
         }
         editedPhotoAssetArray.removeAll()
         #endif
@@ -119,6 +119,40 @@ extension PhotoPickerController {
         }
         return true
     }
+    
+    #if HXPICKER_ENABLE_EDITOR
+    func shouldEditPhotoAsset(
+        photoAsset: PhotoAsset,
+        editorConfig: PhotoEditorConfiguration,
+        atIndex: Int
+    ) -> Bool {
+        if let shouldEditAsset = pickerDelegate?.pickerController(
+            self,
+            shouldEditPhotoAsset: photoAsset,
+            editorConfig: editorConfig,
+            atIndex: atIndex
+        ) {
+            return shouldEditAsset
+        }
+        return true
+    }
+    func shouldEditVideoAsset(
+        videoAsset: PhotoAsset,
+        editorConfig: VideoEditorConfiguration,
+        atIndex: Int
+    ) -> Bool {
+        if let shouldEditAsset = pickerDelegate?.pickerController(
+            self,
+            shouldEditVideoAsset: videoAsset,
+            editorConfig: editorConfig,
+            atIndex: atIndex
+        ) {
+            return shouldEditAsset
+        }
+        return true
+    }
+    #endif
+    
     func didEditAsset(
         photoAsset: PhotoAsset,
         atIndex: Int
@@ -192,6 +226,11 @@ extension PhotoPickerController {
             var total: Int = 0
              
             func calculationCompletion(_ totalSize: Int) {
+                if isPreview {
+                    self.previewRequestAdjustmentStatusIds.removeAll()
+                }else {
+                    self.requestAdjustmentStatusIds.removeAll()
+                }
                 DispatchQueue.main.async {
                     completion(
                         totalSize,
@@ -261,7 +300,13 @@ extension PhotoPickerController {
                         calculationCompletion(totalFileSize)
                     }
                 }
-                photoAsset.adjustmentStatusId = requestId
+                if let id = requestId, let phAsset = photoAsset.phAsset {
+                    if isPreview {
+                        self.previewRequestAdjustmentStatusIds.append([id: phAsset])
+                    }else {
+                        self.requestAdjustmentStatusIds.append([id: phAsset])
+                    }
+                }
             }
         }
         if isPreview {
@@ -274,15 +319,21 @@ extension PhotoPickerController {
     /// 取消获取资源文件大小
     /// - Parameter isPreview: 是否预览界面
     func cancelRequestAssetFileSize(isPreview: Bool) {
-        for photoAsset in selectedAssetArray {
-            if let id = photoAsset.adjustmentStatusId {
-                photoAsset.phAsset?.cancelContentEditingInputRequest(id)
-                photoAsset.adjustmentStatusId = nil
-            }
-        }
         if isPreview {
+            for map in previewRequestAdjustmentStatusIds {
+                if let id = map.keys.first, let phAsset = map.values.first {
+                    phAsset.cancelContentEditingInputRequest(id)
+                }
+            }
+            previewRequestAdjustmentStatusIds.removeAll()
             previewRequestAssetBytesQueue.cancelAllOperations()
         }else {
+            for map in requestAdjustmentStatusIds {
+                if let id = map.keys.first, let phAsset = map.values.first {
+                    phAsset.cancelContentEditingInputRequest(id)
+                }
+            }
+            requestAdjustmentStatusIds.removeAll()
             requestAssetBytesQueue.cancelAllOperations()
         }
     }
@@ -529,12 +580,8 @@ extension PhotoPickerController {
             }
         }
         if let text = text, !canSelect, showHUD {
-            if DispatchQueue.isMain {
-                ProgressHUD.showWarning(addedTo: view, text: text, animated: true, delayHide: 1.5)
-            }else {
-                DispatchQueue.main.async {
-                    ProgressHUD.showWarning(addedTo: self.view, text: text, animated: true, delayHide: 1.5)
-                }
+            DispatchQueue.main.async {
+                ProgressHUD.showWarning(addedTo: self.view, text: text, animated: true, delayHide: 1.5)
             }
         }
         return canSelect

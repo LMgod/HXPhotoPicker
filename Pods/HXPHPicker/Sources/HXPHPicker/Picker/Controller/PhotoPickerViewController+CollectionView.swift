@@ -86,6 +86,7 @@ extension PhotoPickerViewController: UICollectionViewDataSource {
         }
         cell.delegate = self
         cell.config = config.cell
+        cell.isRequestDirectly = false
         cell.photoAsset = photoAsset
         return cell
     }
@@ -99,25 +100,37 @@ extension PhotoPickerViewController: UICollectionViewDelegate {
         willDisplay cell: UICollectionViewCell,
         forItemAt indexPath: IndexPath
     ) {
-        if let pickerController = pickerController,
-           let myCell = cell as? PhotoPickerBaseViewCell {
-            let photoAsset = getPhotoAsset(for: indexPath.item)
-            if !photoAsset.isSelected &&
-                config.cell.showDisableMask &&
-                pickerController.config.maximumSelectedVideoFileSize == 0 &&
-                pickerController.config.maximumSelectedPhotoFileSize == 0 {
-                myCell.canSelect = pickerController.canSelectAsset(
-                    for: photoAsset,
-                    showHUD: false
-                )
-            }else {
-                myCell.canSelect = true
-            }
-            myCell.updateSelectedState(
-                isSelected: photoAsset.isSelected,
-                animated: false
-            )
+        guard let pickerController = pickerController,
+              let myCell = cell as? PhotoPickerBaseViewCell else {
+            return
         }
+        myCell.request()
+        let photoAsset = getPhotoAsset(for: indexPath.item)
+        if !photoAsset.isSelected &&
+            config.cell.showDisableMask &&
+            pickerController.config.maximumSelectedVideoFileSize == 0 &&
+            pickerController.config.maximumSelectedPhotoFileSize == 0 {
+            myCell.canSelect = pickerController.canSelectAsset(
+                for: photoAsset,
+                showHUD: false
+            )
+        }else {
+            myCell.canSelect = true
+        }
+        myCell.updateSelectedState(
+            isSelected: photoAsset.isSelected,
+            animated: false
+        )
+    }
+    public func collectionView(
+        _ collectionView: UICollectionView,
+        didEndDisplaying cell: UICollectionViewCell,
+        forItemAt indexPath: IndexPath
+    ) {
+        guard let myCell = cell as? PhotoPickerBaseViewCell else {
+            return
+        }
+        myCell.cancelReload()
     }
     public func collectionView(
         _ collectionView: UICollectionView,
@@ -139,7 +152,7 @@ extension PhotoPickerViewController: UICollectionViewDelegate {
         guard let cell = collectionView.cellForItem(at: indexPath) else {
             return
         }
-        if cell is PickerCamerViewCell {
+        if cell is PickerCameraViewCell {
             if !UIImagePickerController.isSourceTypeAvailable(.camera) {
                 ProgressHUD.showWarning(
                     addedTo: self.navigationController?.view,
@@ -180,16 +193,17 @@ extension PhotoPickerViewController: UICollectionViewDelegate {
                 return
             }
             let item = needOffset ? indexPath.item - offsetIndex : indexPath.item
-            if let pickerController = pickerController {
-                if !pickerController.shouldClickCell(photoAsset: myCell.photoAsset, index: item) {
-                    return
-                }
+            guard let picker = pickerController else {
+                return
+            }
+            if !picker.shouldClickCell(photoAsset: myCell.photoAsset, index: item) {
+                return
             }
             var selectionTapAction: SelectionTapAction
             if photoAsset.mediaType == .photo {
-                selectionTapAction = pickerController!.config.photoSelectionTapAction
+                selectionTapAction = picker.config.photoSelectionTapAction
             }else {
-                selectionTapAction = pickerController!.config.videoSelectionTapAction
+                selectionTapAction = picker.config.videoSelectionTapAction
             }
             switch selectionTapAction {
             case .preview:
@@ -255,12 +269,20 @@ extension PhotoPickerViewController: UICollectionViewDelegate {
               photoAsset.mediaType == .photo else {
             return false
         }
-        if !pickerController.shouldEditAsset(photoAsset: photoAsset, atIndex: assets.firstIndex(of: photoAsset) ?? 0) {
+        let editIndex = assets.firstIndex(of: photoAsset) ?? 0
+        if !pickerController.shouldEditAsset(photoAsset: photoAsset, atIndex: editIndex) {
             return false
         }
         #if HXPICKER_ENABLE_EDITOR && HXPICKER_ENABLE_PICKER
         if pickerController.config.editorOptions.contains(.photo) {
             let config = pickerController.config.photoEditor
+            if !pickerController.shouldEditPhotoAsset(
+                photoAsset: photoAsset,
+                editorConfig: config,
+                atIndex: editIndex
+            ) {
+                return false
+            }
             config.languageType = pickerController.config.languageType
             config.appearanceStyle = pickerController.config.appearanceStyle
             config.indicatorType = pickerController.config.indicatorType
@@ -289,7 +311,8 @@ extension PhotoPickerViewController: UICollectionViewDelegate {
               photoAsset.mediaType == .video else {
             return false
         }
-        if !pickerController.shouldEditAsset(photoAsset: photoAsset, atIndex: assets.firstIndex(of: photoAsset) ?? 0) {
+        let editIndex = assets.firstIndex(of: photoAsset) ?? 0
+        if !pickerController.shouldEditAsset(photoAsset: photoAsset, atIndex: editIndex) {
             return false
         }
         #if HXPICKER_ENABLE_EDITOR && HXPICKER_ENABLE_PICKER
@@ -299,12 +322,19 @@ extension PhotoPickerViewController: UICollectionViewDelegate {
             if isExceedsTheLimit {
                 config = pickerController.config.videoEditor.mutableCopy() as! VideoEditorConfiguration
                 config.defaultState = .cropTime
-                config.cropping.maximumVideoCroppingTime = TimeInterval(
+                config.cropTime.maximumVideoCroppingTime = TimeInterval(
                     pickerController.config.maximumSelectedVideoDuration
                 )
                 config.mustBeTailored = true
             }else {
                 config = pickerController.config.videoEditor
+            }
+            if !pickerController.shouldEditVideoAsset(
+                videoAsset: photoAsset,
+                editorConfig: config,
+                atIndex: editIndex
+            ) {
+                return false
             }
             config.languageType = pickerController.config.languageType
             config.appearanceStyle = pickerController.config.appearanceStyle
@@ -362,7 +392,7 @@ extension PhotoPickerViewController: UICollectionViewDelegate {
                 vc.delegate = self
                 vc.preferredContentSize = CGSize(width: width, height: height)
                 return vc
-            }else if sCell is PickerCamerViewCell &&
+            }else if sCell is PickerCameraViewCell &&
                      UIImagePickerController.isSourceTypeAvailable(.camera) &&
                      AssetManager.cameraAuthorizationStatus() == .authorized {
                 let vc = PhotoPeekViewController(isCamera: true)
@@ -377,7 +407,9 @@ extension PhotoPickerViewController: UICollectionViewDelegate {
             let photoAsset = cell.photoAsset!
             if picker.config.selectMode == .multiple {
                 let select = UIAction(
-                    title: photoAsset.isSelected ? "取消选择".localized : "选择".localized
+                    title: photoAsset.isSelected ? "取消选择".localized : "选择".localized,
+                    image: photoAsset.isSelected ? UIImage(systemName: "minus.circle") : UIImage(systemName: "checkmark.circle"),
+                    attributes: photoAsset.isSelected ? [.destructive] : []
                 ) { action in
                     self.updateCellSelectedState(
                         for: indexPath.item,
@@ -396,7 +428,8 @@ extension PhotoPickerViewController: UICollectionViewDelegate {
             }
             if picker.config.editorOptions.contains(options) {
                 let edit = UIAction(
-                    title: "编辑".localized
+                    title: "编辑".localized,
+                    image: UIImage(systemName: "slider.horizontal.3")
                 ) { action in
                     self.openEditor(
                         photoAsset,
@@ -454,26 +487,79 @@ extension PhotoPickerViewController: UICollectionViewDelegate {
     }
     public func scrollViewDidScrollToTop(_ scrollView: UIScrollView) {
         PhotoManager.shared.thumbnailLoadModeDidChange(.complete)
+        cellReloadImage()
         scrollToTop = false
     }
     public func scrollViewShouldScrollToTop(_ scrollView: UIScrollView) -> Bool {
         scrollToTop = true
+        scrollEndReload = true
         PhotoManager.shared.thumbnailLoadModeDidChange(.simplify)
         return true
     }
-    public func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
-        if !config.loadClearImageWhenScrollingStops {
-            return
+//    public func scrollViewWillBeginDragging(_ scrollView: UIScrollView) {
+//        setCellLoadMode(.complete)
+//        print("BeginDragging complete")
+//    }
+    public func scrollViewDidEndDragging(
+        _ scrollView: UIScrollView,
+        willDecelerate decelerate: Bool
+    ) {
+        if !decelerate && !scrollToTop {
+            didChangeCellLoadMode = false
+            cellReloadImage()
         }
-        PhotoManager.shared.thumbnailLoadModeDidChange(.simplify)
     }
     public func scrollViewDidEndDecelerating(_ scrollView: UIScrollView) {
-        if !config.loadClearImageWhenScrollingStops {
+        if !scrollView.isTracking && !scrollToTop {
+            didChangeCellLoadMode = false
+            cellReloadImage()
+        }
+    }
+    public func scrollViewWillEndDragging(
+        _ scrollView: UIScrollView,
+        withVelocity velocity: CGPoint,
+        targetContentOffset: UnsafeMutablePointer<CGPoint>
+    ) {
+        let offset = targetContentOffset.pointee
+        let abs = abs(offset.y - scrollView.contentOffset.y)
+        if abs < 3000 {
+            if scrollReachDistance {
+                setCellLoadMode(.complete, false)
+                scrollReachDistance = false
+            }
             return
         }
-        if !scrollView.isTracking && !scrollToTop {
-            PhotoManager.shared.thumbnailLoadModeDidChange(.complete)
+        targetOffsetY = offset.y
+        setCellLoadMode(.simplify)
+        scrollReachDistance = true
+    }
+    public func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        if didChangeCellLoadMode {
+            if abs(targetOffsetY - scrollView.contentOffset.y) < 1250 {
+                setCellLoadMode(.complete)
+            }
         }
+    }
+    func setCellLoadMode(
+        _ mode: PhotoManager.ThumbnailLoadMode,
+        _ judgmentIsEqual: Bool = true
+    ) {
+        if PhotoManager.shared.thumbnailLoadMode == mode && judgmentIsEqual {
+            return
+        }
+        PhotoManager.shared.thumbnailLoadModeDidChange(mode)
+        scrollEndReload = mode == .complete
+        didChangeCellLoadMode = mode != .complete
+    }
+    func cellReloadImage() {
+        if !scrollEndReload && !didChangeCellLoadMode {
+            return
+        }
+        for baseCell in collectionView.visibleCells where baseCell is PhotoPickerBaseViewCell {
+            let cell = baseCell as! PhotoPickerBaseViewCell
+            cell.reload()
+        }
+        scrollEndReload = false
     }
 }
 

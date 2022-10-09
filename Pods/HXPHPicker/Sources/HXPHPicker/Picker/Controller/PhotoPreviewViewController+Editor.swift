@@ -43,7 +43,9 @@ extension PhotoPreviewViewController: PhotoEditorViewControllerDelegate {
         delegate?.previewViewController(self, editAssetFinished: photoAsset)
         picker.didEditAsset(photoAsset: photoAsset, atIndex: currentPreviewIndex)
     }
-    public func photoEditorViewController(didFinishWithUnedited photoEditorViewController: PhotoEditorViewController) {
+    public func photoEditorViewController(
+        didFinishWithUnedited photoEditorViewController: PhotoEditorViewController
+    ) {
         guard let picker = pickerController else { return }
         let photoAsset = photoEditorViewController.photoAsset!
         let beforeHasEdit = photoAsset.photoEdit != nil
@@ -262,8 +264,8 @@ extension PhotoPreviewViewController: VideoEditorViewControllerDelegate {
         _ videoEditorViewController: VideoEditorViewController,
         didFinish result: VideoEditResult
     ) {
-        guard let picker = pickerController else { return }
-        let photoAsset = videoEditorViewController.photoAsset!
+        guard let picker = pickerController,
+              let photoAsset = videoEditorViewController.photoAsset else { return }
         photoAsset.videoEdit = result
         if isExternalPreview {
             replacePhotoAsset(at: currentPreviewIndex, with: photoAsset)
@@ -294,8 +296,8 @@ extension PhotoPreviewViewController: VideoEditorViewControllerDelegate {
     public func videoEditorViewController(
         didFinishWithUnedited videoEditorViewController: VideoEditorViewController
     ) {
-        guard let picker = pickerController else { return }
-        let photoAsset = videoEditorViewController.photoAsset!
+        guard let picker = pickerController,
+              let photoAsset = videoEditorViewController.photoAsset else { return }
         let beforeHasEdit = photoAsset.videoEdit != nil
         photoAsset.videoEdit = nil
         if beforeHasEdit {

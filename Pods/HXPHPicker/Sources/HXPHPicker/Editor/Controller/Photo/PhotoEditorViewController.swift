@@ -58,6 +58,7 @@ open class PhotoEditorViewController: BaseViewController {
         self.config = config
         self.editResult = editResult
         super.init(nibName: nil, bundle: nil)
+        modalPresentationStyle = config.modalPresentationStyle
     }
     
     #if HXPICKER_ENABLE_PICKER
@@ -83,6 +84,7 @@ open class PhotoEditorViewController: BaseViewController {
         self.editResult = editResult
         self.photoAsset = photoAsset
         super.init(nibName: nil, bundle: nil)
+        modalPresentationStyle = config.modalPresentationStyle
     }
     #endif
     
@@ -109,6 +111,7 @@ open class PhotoEditorViewController: BaseViewController {
         self.config = config
         self.editResult = editResult
         super.init(nibName: nil, bundle: nil)
+        modalPresentationStyle = config.modalPresentationStyle
     }
     #endif
     var pState: State = .normal
@@ -130,7 +133,8 @@ open class PhotoEditorViewController: BaseViewController {
             cropConfig: config.cropping,
             mosaicConfig: config.mosaic,
             brushConfig: config.brush,
-            exportScale: config.scale
+            exportScale: config.scale,
+            urlConfig: config.imageURLConfig
         )
         imageView.editorDelegate = self
         return imageView
@@ -155,6 +159,7 @@ open class PhotoEditorViewController: BaseViewController {
             isFilter = false
             resetOtherOption()
             hiddenFilterView()
+            imageView.canLookOriginal = false
             return
         }
         if showChartlet {
@@ -188,7 +193,7 @@ open class PhotoEditorViewController: BaseViewController {
     public lazy var topView: UIView = {
         let view = UIView.init(frame: CGRect(x: 0, y: 0, width: 0, height: 44))
         let cancelBtn = UIButton.init(frame: CGRect(x: 0, y: 0, width: 57, height: 44))
-        cancelBtn.setImage(UIImage.image(for: "hx_editor_back"), for: .normal)
+        cancelBtn.setImage(UIImage.image(for: config.backButtonImageName), for: .normal)
         cancelBtn.addTarget(self, action: #selector(didBackButtonClick), for: .touchUpInside)
         view.addSubview(cancelBtn)
         return view
@@ -228,6 +233,42 @@ open class PhotoEditorViewController: BaseViewController {
         let layer = PhotoTools.getGradientShadowLayer(true)
         return layer
     }()
+    lazy var brushBlockView: PhotoEditorBrushSizeView = {
+        let view = PhotoEditorBrushSizeView.init(frame: .init(x: 0, y: 0, width: 30, height: 200))
+        view.alpha = 0
+        view.isHidden = true
+        view.value = config.brush.lineWidth / (config.brush.maximumLinewidth - config.brush.minimumLinewidth)
+        view.blockBeganChanged = { [weak self] _ in
+            guard let self = self else { return }
+            let lineWidth = self.imageView.brushLineWidth + 4
+            self.brushSizeView.size = CGSize(width: lineWidth, height: lineWidth)
+            self.brushSizeView.center = CGPoint(x: self.view.width * 0.5, y: self.view.height * 0.5)
+            self.brushSizeView.alpha = 0
+            self.view.addSubview(self.brushSizeView)
+            UIView.animate(withDuration: 0.2) {
+                self.brushSizeView.alpha = 1
+            }
+        }
+        view.blockDidChanged = { [weak self] in
+            guard let self = self else { return }
+            let config = self.config.brush
+            let lineWidth = (
+                config.maximumLinewidth -  config.minimumLinewidth
+            ) * $0 + config.minimumLinewidth
+            self.imageView.brushLineWidth = lineWidth
+            self.brushSizeView.size = CGSize(width: lineWidth + 4, height: lineWidth + 4)
+            self.brushSizeView.center = CGPoint(x: self.view.width * 0.5, y: self.view.height * 0.5)
+        }
+        view.blockEndedChanged = { [weak self] _ in
+            guard let self = self else { return }
+            UIView.animate(withDuration: 0.2) {
+                self.brushSizeView.alpha = 0
+            } completion: { _ in
+                self.brushSizeView.removeFromSuperview()
+            }
+        }
+        return view
+    }()
     lazy var brushSizeView: BrushSizeView = {
         let lineWidth = imageView.brushLineWidth + 4
         let view = BrushSizeView(frame: CGRect(origin: .zero, size: CGSize(width: lineWidth, height: lineWidth)))
@@ -255,7 +296,10 @@ open class PhotoEditorViewController: BaseViewController {
         if config.cropping.fixedRatio || config.cropping.isRoundCrop {
             showRatios = false
         }
-        let view = PhotoEditorCropToolView.init(showRatios: showRatios)
+        let view = PhotoEditorCropToolView.init(
+            showRatios: showRatios,
+            scaleArray: config.cropping.aspectRatios
+        )
         view.delegate = self
         view.themeColor = config.cropping.aspectRatioSelectedColor
         view.alpha = 0
@@ -272,12 +316,9 @@ open class PhotoEditorViewController: BaseViewController {
     var isFilter = false
     var filterImage: UIImage?
     lazy var filterView: PhotoEditorFilterView = {
-        let filter = editResult?.editedData.filter
-        let value = editResult?.editedData.filterValue
         let view = PhotoEditorFilterView(
             filterConfig: config.filter,
-            sourceIndex: filter?.sourceIndex ?? -1,
-            value: value ?? 0
+            hasLastFilter: editResult?.editedData.hasFilter ?? false
         )
         view.delegate = self
         return view
@@ -332,6 +373,7 @@ open class PhotoEditorViewController: BaseViewController {
             pState = config.state
             if toolOptions.contains(.graffiti) {
                 view.addSubview(brushColorView)
+                view.addSubview(brushBlockView)
             }
             if toolOptions.contains(.chartlet) {
                 view.addSubview(chartletView)
@@ -362,6 +404,8 @@ open class PhotoEditorViewController: BaseViewController {
         }
     }
     open override func deviceOrientationWillChanged(notify: Notification) {
+        orientationDidChange = true
+        imageViewDidChange = false
         if showChartlet {
             singleTap()
         }
@@ -383,8 +427,8 @@ open class PhotoEditorViewController: BaseViewController {
         croppingAction()
     }
     open override func deviceOrientationDidChanged(notify: Notification) {
-        orientationDidChange = true
-        imageViewDidChange = false
+//        orientationDidChange = true
+//        imageViewDidChange = false
     }
     open override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
@@ -399,23 +443,32 @@ open class PhotoEditorViewController: BaseViewController {
         topView.height = navigationController?.navigationBar.height ?? 44
         let cancelButton = topView.subviews.first
         cancelButton?.x = UIDevice.leftMargin
+        let viewControllersCount = navigationController?.viewControllers.count ?? 0
         if let modalPresentationStyle = navigationController?.modalPresentationStyle,
            UIDevice.isPortrait {
-            if modalPresentationStyle == .fullScreen || modalPresentationStyle == .custom {
+            if modalPresentationStyle == .fullScreen ||
+                modalPresentationStyle == .custom ||
+                viewControllersCount > 1 {
                 topView.y = UIDevice.generalStatusBarHeight
             }
-        }else if (modalPresentationStyle == .fullScreen || modalPresentationStyle == .custom) && UIDevice.isPortrait {
+        }else if (
+            modalPresentationStyle == .fullScreen ||
+            modalPresentationStyle == .custom ||
+            viewControllersCount > 1
+        ) && UIDevice.isPortrait {
             topView.y = UIDevice.generalStatusBarHeight
         }
         topMaskLayer.frame = CGRect(x: 0, y: 0, width: view.width, height: topView.frame.maxY + 10)
-        let cropToolFrame = CGRect(x: 0, y: cropConfirmView.y - 60, width: view.width, height: 60)
+        let cropToolFrame = CGRect(x: 0, y: toolView.y - 60, width: view.width, height: 60)
         if toolOptions.contains(.cropSize) {
             cropConfirmView.frame = toolView.frame
             cropToolView.frame = cropToolFrame
             cropToolView.updateContentInset()
         }
         if toolOptions.contains(.graffiti) {
-            brushColorView.frame = CGRect(x: 0, y: cropConfirmView.y - 85, width: view.width, height: 85)
+            brushColorView.frame = CGRect(x: 0, y: toolView.y - 65, width: view.width, height: 65)
+            brushBlockView.x = view.width - 45 - UIDevice.rightMargin
+            brushBlockView.centerY = view.height * 0.5
         }
         if toolOptions.contains(.mosaic) {
             mosaicToolView.frame = cropToolFrame
@@ -529,6 +582,13 @@ open class PhotoEditorViewController: BaseViewController {
             navigationController?.setNavigationBarHidden(true, animated: false)
         }else {
             navigationController?.setNavigationBarHidden(true, animated: true)
+        }
+    }
+    
+    open override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+        if let isHidden = navigationController?.navigationBar.isHidden, !isHidden {
+            navigationController?.setNavigationBarHidden(true, animated: false)
         }
     }
     

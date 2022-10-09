@@ -20,6 +20,18 @@ protocol PhotoPreviewViewControllerDelegate: AnyObject {
         isSelected: Bool,
         updateCell: Bool
     )
+    #if HXPICKER_ENABLE_EDITOR
+    func previewViewController(
+        _ previewController: PhotoPreviewViewController,
+        shouldEditPhotoAsset photoAsset: PhotoAsset,
+        editorConfig: PhotoEditorConfiguration
+    ) -> Bool
+    func previewViewController(
+        _ previewController: PhotoPreviewViewController,
+        shouldEditVideoAsset videoAsset: PhotoAsset,
+        editorConfig: VideoEditorConfiguration
+    ) -> Bool
+    #endif
     func previewViewController(
         _ previewController: PhotoPreviewViewController,
         editAssetFinished photoAsset: PhotoAsset
@@ -51,6 +63,18 @@ extension PhotoPreviewViewControllerDelegate {
         isSelected: Bool,
         updateCell: Bool
     ) { }
+    #if HXPICKER_ENABLE_EDITOR
+    func previewViewController(
+        _ previewController: PhotoPreviewViewController,
+        shouldEditPhotoAsset photoAsset: PhotoAsset,
+        editorConfig: PhotoEditorConfiguration
+    ) -> Bool { true }
+    func previewViewController(
+        _ previewController: PhotoPreviewViewController,
+        shouldEditVideoAsset videoAsset: PhotoAsset,
+        editorConfig: VideoEditorConfiguration
+    ) -> Bool { true }
+    #endif
     func previewViewController(
         _ previewController: PhotoPreviewViewController,
         editAssetFinished photoAsset: PhotoAsset
@@ -222,15 +246,21 @@ public class PhotoPreviewViewController: BaseViewController {
         view.clipsToBounds = true
         initView()
     }
-    public override func deviceOrientationDidChanged(notify: Notification) {
+    public override func deviceOrientationWillChanged(notify: Notification) {
         orientationDidChange = true
-        let cell = getCell(for: currentPreviewIndex)
-        if cell?.photoAsset.mediaSubType == .livePhoto {
-            if #available(iOS 9.1, *) {
-                cell?.scrollContentView.livePhotoView.stopPlayback()
+        if let cell = getCell(for: currentPreviewIndex) {
+            if cell.photoAsset.mediaSubType == .livePhoto ||
+                cell.photoAsset.mediaSubType == .localLivePhoto {
+                if #available(iOS 9.1, *) {
+                    cell.scrollContentView.livePhotoView.stopPlayback()
+                }
             }
         }
-        if config.bottomView.showSelectedView && (isMultipleSelect || isExternalPreview) && config.showBottomView {
+    }
+    public override func deviceOrientationDidChanged(notify: Notification) {
+        if config.bottomView.showSelectedView &&
+            (isMultipleSelect || isExternalPreview) &&
+            config.showBottomView {
             bottomView.selectedView.reloadSectionInset()
         }
     }
@@ -243,8 +273,18 @@ public class PhotoPreviewViewController: BaseViewController {
         super.viewDidAppear(animated)
         viewDidAppear = true
         DispatchQueue.main.async {
-            let cell = self.getCell(for: self.currentPreviewIndex)
-            cell?.requestPreviewAsset()
+            if let cell = self.getCell(for: self.currentPreviewIndex) {
+                cell.requestPreviewAsset()
+            }else {
+                Timer.scheduledTimer(
+                    withTimeInterval: 0.2,
+                    repeats: false
+                ) { [weak self] _ in
+                    guard let self = self else { return }
+                    let cell = self.getCell(for: self.currentPreviewIndex)
+                    cell?.requestPreviewAsset()
+                }
+            }
         }
         pickerController?.viewControllersDidAppear(self)
         guard let picker = pickerController else {

@@ -37,8 +37,6 @@ open class PreviewVideoViewCell: PhotoPreviewViewCell, PhotoPreviewContentViewDe
         }
     }
     
-    var statusBarShouldBeHidden = false
-    
     override init(frame: CGRect) {
         super.init(frame: frame)
         scrollContentView = PhotoPreviewContentView.init(type: .video)
@@ -64,20 +62,7 @@ open class PreviewVideoViewCell: PhotoPreviewViewCell, PhotoPreviewContentViewDe
         delegate?.cell(requestFailed: self)
     }
     public func contentView(updateContentSize contentView: PhotoPreviewContentView) {
-        guard let videoAsset = photoAsset.networkVideoAsset,
-              videoAsset.coverImage == nil,
-              videoAsset.videoSize.equalTo(.zero) else {
-            return
-        }
-        guard let image = PhotoTools.getVideoThumbnailImage(videoURL: videoAsset.videoURL, atTime: 0.1) else {
-            return
-        }
-        let videoScale = image.width / image.height
-        let viewScale = contentView.width / contentView.height
-        if videoScale != viewScale {
-            photoAsset.networkVideoAsset?.videoSize = image.size
-            setupScrollViewContentSize()
-        }
+        setupScrollViewContentSize()
     }
     public func contentView(networkImagedownloadSuccess contentView: PhotoPreviewContentView) {
         
@@ -222,5 +207,14 @@ extension PreviewVideoViewCell: PhotoPreviewVideoViewDelegate {
     }
     func videoView(hideMaskView videoView: VideoPlayerView) {
         hideMask()
+    }
+    
+    func videoView(_ videoView: VideoPlayerView, presentationSize: CGSize) {
+        if let videoAsset = photoAsset.networkVideoAsset,
+           videoAsset.videoSize.equalTo(.zero),
+           !videoAsset.videoSize.equalTo(presentationSize) {
+            photoAsset.networkVideoAsset?.videoSize = presentationSize
+            scrollContentView.updateContentSize(presentationSize)
+        }
     }
 }

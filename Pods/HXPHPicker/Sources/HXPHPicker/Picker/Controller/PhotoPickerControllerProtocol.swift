@@ -6,6 +6,7 @@
 //
 
 import UIKit
+import Photos
 
 public protocol PhotoPickerControllerDelegate: AnyObject {
     
@@ -25,6 +26,26 @@ public protocol PhotoPickerControllerDelegate: AnyObject {
     func pickerController(
         didCancel pickerController: PhotoPickerController
     )
+    
+    /// 获取所有相册时调用
+    /// - Parameter
+    ///   - pickerController: 对应的 PhotoPickerController
+    ///   - collection: 对应的每个 PHAssetCollection 对象
+    /// - Returns: 是否添加到列表显示
+    func pickerController(
+        _ pickerController: PhotoPickerController,
+        didFetchAssetCollections collection: PHAssetCollection
+    ) -> Bool
+    
+    /// 获取相册集合里的 PHAsset 时调用
+    /// - Parameter
+    ///   - pickerController: 对应的 PhotoPickerController
+    ///   - asset: 对应的每个 PHAsset 对象
+    /// - Returns: 是否添加到列表显示
+    func pickerController(
+        _ pickerController: PhotoPickerController,
+        didFetchAssets asset: PHAsset
+    ) -> Bool
     
     /// 点击了原图按钮
     /// - Parameters:
@@ -102,6 +123,30 @@ public protocol PhotoPickerControllerDelegate: AnyObject {
     ) -> Bool
     
     #if HXPICKER_ENABLE_EDITOR
+    
+    /// 即将编辑照片
+    ///   - pickerController: 对应的 PhotoPickerController
+    ///   - photoAsset: 对应的 PhotoAsset 数据
+    ///   - editorConfig: 照片编辑配置
+    /// - Returns: 是否可以编辑
+    func pickerController(
+        _ pickerController: PhotoPickerController,
+        shouldEditPhotoAsset photoAsset: PhotoAsset,
+        editorConfig: PhotoEditorConfiguration,
+        atIndex: Int
+    ) -> Bool
+    
+    /// 即将编辑视频
+    ///   - pickerController: 对应的 PhotoPickerController
+    ///   - videoAsset: 对应的 PhotoAsset 数据
+    ///   - editorConfig: 视频编辑配置
+    /// - Returns: 是否可以编辑
+    func pickerController(
+        _ pickerController: PhotoPickerController,
+        shouldEditVideoAsset videoAsset: PhotoAsset,
+        editorConfig: VideoEditorConfiguration,
+        atIndex: Int
+    ) -> Bool
     
     /// 照片/视频编辑器加载贴图标题资源
     /// - Parameters:
@@ -377,6 +422,24 @@ public extension PhotoPickerControllerDelegate {
     }
     
     func pickerController(
+        didCancel pickerController: PhotoPickerController
+    ) {
+        if !pickerController.autoDismiss {
+            pickerController.dismiss(animated: true)
+        }
+    }
+    
+    func pickerController(
+        _ pickerController: PhotoPickerController,
+        didFetchAssetCollections collection: PHAssetCollection
+    ) -> Bool { true }
+    
+    func pickerController(
+        _ pickerController: PhotoPickerController,
+        didFetchAssets asset: PHAsset
+    ) -> Bool { true }
+    
+    func pickerController(
         _ pickerController: PhotoPickerController,
         didOriginalButton isOriginal: Bool
     ) { }
@@ -428,6 +491,21 @@ public extension PhotoPickerControllerDelegate {
     ) -> Bool { true }
     
     #if HXPICKER_ENABLE_EDITOR
+    
+    func pickerController(
+        _ pickerController: PhotoPickerController,
+        shouldEditPhotoAsset photoAsset: PhotoAsset,
+        editorConfig: PhotoEditorConfiguration,
+        atIndex: Int
+    ) -> Bool { true }
+    
+    func pickerController(
+        _ pickerController: PhotoPickerController,
+        shouldEditVideoAsset videoAsset: PhotoAsset,
+        editorConfig: VideoEditorConfiguration,
+        atIndex: Int
+    ) -> Bool { true }
+    
     func pickerController(
         _ pickerController: PhotoPickerController,
         loadTitleChartlet editorViewController: UIViewController,
@@ -556,14 +634,6 @@ public extension PhotoPickerControllerDelegate {
         _ pickerController: PhotoPickerController,
         viewControllersDidDisappear viewController: UIViewController
     ) { }
-    
-    func pickerController(
-        didCancel pickerController: PhotoPickerController
-    ) {
-        if !pickerController.autoDismiss {
-            pickerController.dismiss(animated: true)
-        }
-    }
     
     func pickerController(
         _ pickerController: PhotoPickerController,

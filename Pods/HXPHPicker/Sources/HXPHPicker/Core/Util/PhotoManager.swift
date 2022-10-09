@@ -67,7 +67,6 @@ public final class PhotoManager: NSObject {
     var firstLoadAssets: Bool = true
     var cameraAlbumResult: PHFetchResult<PHAsset>?
     var cameraAlbumResultOptions: PickerAssetOptions?
-    
     var thumbnailLoadMode: ThumbnailLoadMode = .complete
     #endif
     
@@ -94,6 +93,7 @@ public final class PhotoManager: NSObject {
     
     #if HXPICKER_ENABLE_PICKER || HXPICKER_ENABLE_CAMERA
     var cameraPreviewImage: UIImage? = PhotoTools.getCameraPreviewImage()
+    var sampleBuffer: CMSampleBuffer?
     func saveCameraPreview() {
         if let image = cameraPreviewImage {
             DispatchQueue.global().async {
@@ -102,6 +102,8 @@ public final class PhotoManager: NSObject {
         }
     }
     #endif
+    
+    let uuid: String = UUID().uuidString
     
     private override init() {
         super.init()
@@ -118,7 +120,7 @@ public final class PhotoManager: NSObject {
                 self.bundle = Bundle.main
             }
             #else
-            let bundle = Bundle.init(for: HXPHPicker.self)
+            let bundle = Bundle(for: HXPHPicker.self)
             var path = bundle.path(forResource: "HXPHPicker", ofType: "bundle")
             if path == nil {
                 let associateBundleURL = Bundle.main.url(forResource: "Frameworks", withExtension: nil)
@@ -128,12 +130,6 @@ public final class PhotoManager: NSObject {
                     let associateBunle = Bundle(url: url)
                     path = associateBunle?.path(forResource: "HXPHPicker", ofType: "bundle")
                 }
-//                if associateBundleURL != nil {
-//                    associateBundleURL = associateBundleURL?.appendingPathComponent("HXPHPicker")
-//                    associateBundleURL = associateBundleURL?.appendingPathExtension("framework")
-//                    let associateBunle = Bundle.init(url: associateBundleURL!)
-//                    path = associateBunle?.path(forResource: "HXPHPicker", ofType: "bundle")
-//                }
             }
             if let path = path {
                 self.bundle = Bundle(path: path)
@@ -155,12 +151,21 @@ extension PhotoManager {
         case simplify
         case complete
     }
-    func thumbnailLoadModeDidChange(_ mode: ThumbnailLoadMode) {
+    func thumbnailLoadModeDidChange(
+        _ mode: ThumbnailLoadMode
+    ) {
         if thumbnailLoadMode == mode {
             return
         }
         thumbnailLoadMode = mode
-        NotificationCenter.default.post(name: .ThumbnailLoadModeDidChange, object: nil)
+//        if !needReload && !forceReload {
+//            return
+//        }
+//        NotificationCenter.default.post(
+//            name: .ThumbnailLoadModeDidChange,
+//            object: nil,
+//            userInfo: ["needReload": forceReload ? true : needReload]
+//        )
     }
 }
 #endif

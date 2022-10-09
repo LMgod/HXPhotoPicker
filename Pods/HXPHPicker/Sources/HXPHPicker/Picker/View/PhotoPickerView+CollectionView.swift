@@ -53,7 +53,7 @@ extension PhotoPickerView: UICollectionViewDataSource {
         cellForItemAt indexPath: IndexPath
     ) -> UICollectionViewCell {
         if let cell = getAdditiveCell(indexPath) {
-            if let cell = cell as? PickerCamerViewCell {
+            if let cell = cell as? PickerCameraViewCell {
                 cell.allowPreview = allowPreview
                 cell.config = config.cameraCell
                 if !allowPreview {
@@ -178,7 +178,7 @@ extension PhotoPickerView: UICollectionViewDelegate {
         guard let cell = collectionView.cellForItem(at: indexPath) else {
             return
         }
-        if cell is PickerCamerViewCell {
+        if cell is PickerCameraViewCell {
             if !UIImagePickerController.isSourceTypeAvailable(.camera) {
                 ProgressHUD.showWarning(
                     addedTo: UIApplication.shared.keyWindow,
@@ -192,7 +192,7 @@ extension PhotoPickerView: UICollectionViewDelegate {
                 if granted {
                     self.presentCameraViewController()
                 }else {
-                    PhotoTools.showNotCameraAuthorizedAlert(viewController: self.viewController())
+                    PhotoTools.showNotCameraAuthorizedAlert(viewController: self.viewController)
                 }
             }
         }else if cell is PhotoPickerLimitCell {
@@ -278,6 +278,14 @@ extension PhotoPickerView: UICollectionViewDelegate {
         #if HXPICKER_ENABLE_EDITOR && HXPICKER_ENABLE_PICKER
         if manager.config.editorOptions.contains(.photo) {
             let config = manager.config.photoEditor
+            if let shouldEdit = delegate?.photoPickerView(
+                self,
+                shouldEditPhotoAsset: photoAsset,
+                editorConfig: config
+            ),
+               !shouldEdit {
+                return false
+            }
             config.languageType = manager.config.languageType
             config.appearanceStyle = manager.config.appearanceStyle
             config.indicatorType = manager.config.indicatorType
@@ -287,7 +295,7 @@ extension PhotoPickerView: UICollectionViewDelegate {
                 config: config,
                 delegate: self
             )
-            viewController()?.present(photoEditorVC, animated: animated)
+            viewController?.present(photoEditorVC, animated: animated)
             return true
         }
         #endif
@@ -309,12 +317,20 @@ extension PhotoPickerView: UICollectionViewDelegate {
             if isExceedsTheLimit {
                 config = manager.config.videoEditor.mutableCopy() as! VideoEditorConfiguration
                 config.defaultState = .cropTime
-                config.cropping.maximumVideoCroppingTime = TimeInterval(
+                config.cropTime.maximumVideoCroppingTime = TimeInterval(
                     manager.config.maximumSelectedVideoDuration
                 )
                 config.mustBeTailored = true
             }else {
                 config = manager.config.videoEditor
+            }
+            if let shouldEdit = delegate?.photoPickerView(
+                self,
+                shouldEditVideoAsset: photoAsset,
+                editorConfig: config
+            ),
+               !shouldEdit {
+                return false
             }
             config.languageType = manager.config.languageType
             config.appearanceStyle = manager.config.appearanceStyle
@@ -327,7 +343,7 @@ extension PhotoPickerView: UICollectionViewDelegate {
                 delegate: self
             )
             videoEditorVC.videoEditor?.coverImage = coverImage
-            viewController()?.present(videoEditorVC, animated: animated)
+            viewController?.present(videoEditorVC, animated: animated)
             return true
         }
         #endif
@@ -370,7 +386,7 @@ extension PhotoPickerView: UICollectionViewDelegate {
                 vc.delegate = self
                 vc.preferredContentSize = CGSize(width: width, height: height)
                 return vc
-            }else if sCell is PickerCamerViewCell &&
+            }else if sCell is PickerCameraViewCell &&
                      UIImagePickerController.isSourceTypeAvailable(.camera) &&
                      AssetManager.cameraAuthorizationStatus() == .authorized {
                 let vc = PhotoPeekViewController(isCamera: true)
@@ -385,7 +401,9 @@ extension PhotoPickerView: UICollectionViewDelegate {
             
             if self.manager.config.selectMode == .multiple {
                 let select = UIAction(
-                    title: photoAsset.isSelected ? "取消选择".localized : "选择".localized
+                    title: photoAsset.isSelected ? "取消选择".localized : "选择".localized,
+                    image: photoAsset.isSelected ? UIImage(systemName: "minus.circle") : UIImage(systemName: "checkmark.circle"),
+                    attributes: photoAsset.isSelected ? [.destructive] : []
                 ) { action in
                     self.updateCellSelectedState(
                         for: indexPath.item,
@@ -404,7 +422,8 @@ extension PhotoPickerView: UICollectionViewDelegate {
             }
             if self.manager.config.editorOptions.contains(options) {
                 let edit = UIAction(
-                    title: "编辑".localized
+                    title: "编辑".localized,
+                    image: UIImage(systemName: "slider.horizontal.3")
                 ) { action in
                     self.openEditor(
                         photoAsset,

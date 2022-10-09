@@ -15,8 +15,12 @@ open class VideoEditorConfiguration: EditorConfiguration {
     /// 视频导出的质量[0-10]
     public var videoQuality: Int = 6
     
-    /// 视频导出的地址，默认在tmp下
-    public var videoExportURL: URL?
+    /// 返回按钮图标
+    public var backButtonImageName: String = "hx_editor_back"
+    
+    /// 视频导出的地址配置，默认在tmp下
+    /// 每次编辑时请设置不同地址，防止之前存在的数据被覆盖
+    public var videoURLConfig: EditorURLConfig?
     
     /// 编辑控制器的默认状态
     public var defaultState: VideoEditorViewController.State = .normal
@@ -27,12 +31,6 @@ open class VideoEditorConfiguration: EditorConfiguration {
     /// 画笔
     public lazy var brush: EditorBrushConfiguration = .init()
     
-    /// 裁剪配置
-    public lazy var sizeCrop: EditorCropSizeConfiguration = .init()
-    
-    /// 裁剪确认视图配置
-    public lazy var cropConfimView: CropConfirmViewConfiguration = .init()
-    
     /// 贴图配置
     public lazy var chartlet: EditorChartletConfiguration = .init()
     
@@ -41,6 +39,54 @@ open class VideoEditorConfiguration: EditorConfiguration {
     
     /// 音乐配置
     public lazy var music: Music = .init()
+    
+    /// 滤镜配置
+    public lazy var filter: Filter = .init(infos: PhotoTools.defaultVideoFilters())
+    
+    /// 裁剪时长配置
+    public lazy var cropTime: VideoCropTimeConfiguration = .init()
+    
+    /// 裁剪画面配置
+    public lazy var cropSize: EditorCropSizeConfiguration = .init() 
+    
+    /// 裁剪确认视图配置
+    public lazy var cropConfirmView: CropConfirmViewConfiguration = .init()
+    
+    /// 工具视图配置
+    public lazy var toolView: EditorToolViewConfiguration = {
+        let graffiti = EditorToolOptions(
+            imageName: "hx_editor_tools_graffiti",
+            type: .graffiti
+        )
+        let chartlet = EditorToolOptions(
+            imageName: "hx_editor_photo_tools_emoji",
+            type: .chartlet
+        )
+        let text = EditorToolOptions(
+            imageName: "hx_editor_photo_tools_text",
+            type: .text
+        )
+        let cropSize = EditorToolOptions(
+            imageName: "hx_editor_photo_crop",
+            type: .cropSize
+        )
+        let music = EditorToolOptions.init(
+            imageName: "hx_editor_tools_music",
+            type: .music
+        )
+        let cropTime = EditorToolOptions.init(
+            imageName: "hx_editor_video_crop",
+            type: .cropTime
+        )
+        let filter = EditorToolOptions(
+            imageName: "hx_editor_tools_filter",
+            type: .filter
+        )
+        return .init(toolOptions: [graffiti, chartlet, text, music, cropSize, cropTime, filter])
+    }()
+}
+
+extension VideoEditorConfiguration {
     
     public struct Music {
         /// 显示搜索
@@ -69,39 +115,4 @@ open class VideoEditorConfiguration: EditorConfiguration {
         
         public init() { }
     }
-    
-    /// 裁剪配置
-    public lazy var cropping: VideoCropTimeConfiguration = .init()
-    
-    /// 裁剪视图配置
-    public lazy var cropView: CropConfirmViewConfiguration = .init()
-    
-    /// 工具视图配置
-    public lazy var toolView: EditorToolViewConfiguration = {
-        let graffiti = EditorToolOptions(
-            imageName: "hx_editor_tools_graffiti",
-            type: .graffiti
-        )
-        let chartlet = EditorToolOptions(
-            imageName: "hx_editor_photo_tools_emoji",
-            type: .chartlet
-        )
-        let text = EditorToolOptions(
-            imageName: "hx_editor_photo_tools_text",
-            type: .text
-        )
-//        let cropSize = EditorToolOptions(
-//            imageName: "hx_editor_photo_crop",
-//            type: .cropSize
-//        )
-        let music = EditorToolOptions.init(
-            imageName: "hx_editor_tools_music",
-            type: .music
-        )
-        let cropTime = EditorToolOptions.init(
-            imageName: "hx_editor_video_crop",
-            type: .cropTime
-        )
-        return .init(toolOptions: [graffiti, chartlet, text, music, /*cropSize,*/ cropTime])
-    }()
 }

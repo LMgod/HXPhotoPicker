@@ -41,37 +41,37 @@ open class PhotoPickerController: UINavigationController {
     /// 可以在传入 selectedAssetArray 之后重新加载数据将重新设置的被选择的 PhotoAsset 选中
     /// - Parameter assetCollection: 切换显示其他资源集合
     public func reloadData(assetCollection: PhotoAssetCollection?) {
-        pickerViewController()?.changedAssetCollection(collection: assetCollection)
+        pickerViewController?.changedAssetCollection(collection: assetCollection)
         reloadAlbumData()
     }
     
     /// 刷新相册数据，只对单独控制器展示的有效
     public func reloadAlbumData() {
-        albumViewController()?.tableView.reloadData()
+        albumViewController?.tableView.reloadData()
     }
     
     /// 使用其他相机拍摄完之后调用此方法添加
     /// - Parameter photoAsset: 对应的 PhotoAsset 数据
     public func addedCameraPhotoAsset(_ photoAsset: PhotoAsset) {
-        pickerViewController()?.addedCameraPhotoAsset(photoAsset)
-        previewViewController()?.addedCameraPhotoAsset(photoAsset)
+        pickerViewController?.addedCameraPhotoAsset(photoAsset)
+        previewViewController?.addedCameraPhotoAsset(photoAsset)
     }
     
     /// 删除当前预览的 Asset
     public func deleteCurrentPreviewPhotoAsset() {
-        previewViewController()?.deleteCurrentPhotoAsset()
+        previewViewController?.deleteCurrentPhotoAsset()
     }
     
     /// 预览界面添加本地资源
     /// - Parameter photoAsset: 对应的 PhotoAsset 数据
     public func previewAddedCameraPhotoAsset(_ photoAsset: PhotoAsset) {
-        previewViewController()?.addedCameraPhotoAsset(photoAsset)
+        previewViewController?.addedCameraPhotoAsset(photoAsset)
     }
     
     /// 获取预览界面当前显示的 image 视图
     /// - Returns: 对应的 UIImageView
     public func getCurrentPreviewImageView() -> UIImageView? {
-        if let previewVC = previewViewController(),
+        if let previewVC = previewViewController,
            let cell = previewVC.getCell(for: previewVC.currentPreviewIndex) {
             return cell.scrollContentView.imageView.imageView
         }
@@ -79,16 +79,22 @@ open class PhotoPickerController: UINavigationController {
     }
     
     /// 相册列表控制器
-    public func albumViewController() -> AlbumViewController? {
-        getViewController(for: AlbumViewController.self) as? AlbumViewController
+    public var albumViewController: AlbumViewController? {
+        getViewController(
+            for: AlbumViewController.self
+        ) as? AlbumViewController
     }
     /// 照片选择控制器
-    public func pickerViewController() -> PhotoPickerViewController? {
-        getViewController(for: PhotoPickerViewController.self) as? PhotoPickerViewController
+    public var pickerViewController: PhotoPickerViewController? {
+        getViewController(
+            for: PhotoPickerViewController.self
+        ) as? PhotoPickerViewController
     }
     /// 照片预览控制器
-    public func previewViewController() -> PhotoPreviewViewController? {
-        getViewController(for: PhotoPreviewViewController.self) as? PhotoPreviewViewController
+    public var previewViewController: PhotoPreviewViewController? {
+        getViewController(
+            for: PhotoPreviewViewController.self
+        ) as? PhotoPreviewViewController
     }
     
     /// 当前处于的外部预览
@@ -117,12 +123,14 @@ open class PhotoPickerController: UINavigationController {
         if config.selectMode == .multiple &&
             !config.allowSelectedTogether &&
             config.maximumSelectedVideoCount == 1 &&
-            config.selectOptions.isPhoto && config.selectOptions.isVideo {
+            config.selectOptions.isPhoto && config.selectOptions.isVideo &&
+            config.photoList.cell.singleVideoHideSelect {
             singleVideo = true
         }
         isPreviewAsset = false
         isExternalPickerPreview = false
         super.init(nibName: nil, bundle: nil)
+        modalPresentationStyle = config.modalPresentationStyle
         pickerDelegate = delegate
         var photoVC: UIViewController
         if config.albumShowMode == .normal {
@@ -243,6 +251,8 @@ open class PhotoPickerController: UINavigationController {
         requestAssetBytesQueue.maxConcurrentOperationCount = 1
         return requestAssetBytesQueue
     }()
+    lazy var previewRequestAdjustmentStatusIds: [[PHContentEditingInputRequestID: PHAsset]] = []
+    lazy var requestAdjustmentStatusIds: [[PHContentEditingInputRequestID: PHAsset]] = []
     public override var modalPresentationStyle: UIModalPresentationStyle {
         didSet {
             if (isPreviewAsset || isExternalPickerPreview) && modalPresentationStyle == .custom {
@@ -253,9 +263,14 @@ open class PhotoPickerController: UINavigationController {
     }
     var interactiveTransition: PickerInteractiveTransition?
     
+    var dismissInteractiveTransition: PickerControllerInteractiveTransition?
+    
     #if HXPICKER_ENABLE_EDITOR
     lazy var editedPhotoAssetArray: [PhotoAsset] = []
     #endif
+    
+    var isSwipeRightBack: Bool = false
+    var allowPushPresent: Bool = false
     
     public override func viewDidLoad() {
         super.viewDidLoad()
@@ -268,6 +283,22 @@ open class PhotoPickerController: UINavigationController {
         if !isPreviewAsset && !isExternalPickerPreview {
             setOptions()
             requestAuthorization()
+            if modalPresentationStyle == .fullScreen &&
+                config.albumShowMode == .popup {
+                transitioningDelegate = self
+                modalPresentationCapturesStatusBarAppearance = true
+                if config.pickerPresentStyle == .push {
+                    allowPushPresent = true
+                }
+                if config.allowRightSwipeGestureBack {
+                    isSwipeRightBack = true
+                    dismissInteractiveTransition = .init(
+                        panGestureRecognizerFor: self,
+                        type: config.pickerPresentStyle == .push ? .pop : .dismiss,
+                        triggerRange: config.rightSwipeGestureTriggerRange
+                    )
+                }
+            }
         }else {
             if modalPresentationStyle == .custom {
                 interactiveTransition = PickerInteractiveTransition.init(panGestureRecognizerFor: self, type: .dismiss)
@@ -397,7 +428,7 @@ extension PhotoPickerController {
             appearance.titleTextAttributes = titleTextAttributes
             switch barStyle {
             case .default:
-                appearance.backgroundEffect = UIBlurEffect(style: .light)
+                appearance.backgroundEffect = UIBlurEffect(style: .extraLight)
             default:
                 appearance.backgroundEffect = UIBlurEffect(style: .dark)
             }
@@ -422,9 +453,9 @@ extension PhotoPickerController {
             isFirstAuthorization = true
             AssetManager.requestAuthorization { (status) in
                 self.fetchData(status: status)
-                self.albumViewController()?.updatePrompt()
-                self.pickerViewController()?.reloadAlbumData()
-                self.pickerViewController()?.updateBottomPromptView()
+                self.albumViewController?.updatePrompt()
+                self.pickerViewController?.reloadAlbumData()
+                self.pickerViewController?.updateBottomPromptView()
                 PhotoManager.shared.registerPhotoChangeObserver()
             }
         }
@@ -434,7 +465,7 @@ extension PhotoPickerController {
             for photoAsset in selectedAssetArray {
                 photoAsset.isSelected = true
             }
-            previewViewController()?.previewAssets = selectedAssetArray
+            previewViewController?.previewAssets = selectedAssetArray
             return
         }
         if config.selectMode == .single {
@@ -473,10 +504,8 @@ extension PhotoPickerController {
         }
     }
     private func getViewController(for viewControllerClass: UIViewController.Type) -> UIViewController? {
-        for viewController in viewControllers {
-            if viewController.isMember(of: viewControllerClass) {
-                return viewController
-            }
+        for vc in viewControllers where vc.isMember(of: viewControllerClass) {
+            return vc
         }
         return nil
     }
@@ -486,7 +515,9 @@ extension PhotoPickerController {
         #endif
         var cameraAssetArray: [PhotoAsset] = []
         for photoAsset in localCameraAssetArray {
-            cameraAssetArray.append(photoAsset.copyCamera())
+            if let cameraAsset = photoAsset.cameraAsset {
+                cameraAssetArray.append(cameraAsset)
+            }
         }
         PhotoManager.shared.saveCameraPreview()
         pickerDelegate?.pickerController(self, didDismissComplete: cameraAssetArray)

@@ -19,6 +19,8 @@ public protocol PhotoPreviewContentViewDelete: AnyObject {
     func contentView(networkImagedownloadSuccess contentView: PhotoPreviewContentView)
     func contentView(networkImagedownloadFailed contentView: PhotoPreviewContentView)
     func contentView(updateContentSize contentView: PhotoPreviewContentView)
+    func contentView(livePhotoWillBeginPlayback contentView: PhotoPreviewContentView)
+    func contentView(livePhotoDidEndPlayback contentView: PhotoPreviewContentView)
 }
 
 public extension PhotoPreviewContentViewDelete {
@@ -27,9 +29,11 @@ public extension PhotoPreviewContentViewDelete {
     func contentView(networkImagedownloadSuccess contentView: PhotoPreviewContentView) { }
     func contentView(networkImagedownloadFailed contentView: PhotoPreviewContentView) { }
     func contentView(updateContentSize contentView: PhotoPreviewContentView) { }
+    func contentView(livePhotoWillBeginPlayback contentView: PhotoPreviewContentView) { }
+    func contentView(livePhotoDidEndPlayback contentView: PhotoPreviewContentView) { }
 }
 
-open class PhotoPreviewContentView: UIView, PHLivePhotoViewDelegate {
+open class PhotoPreviewContentView: UIView {
     
     public enum `Type`: Int {
         case photo
@@ -44,7 +48,7 @@ open class PhotoPreviewContentView: UIView, PHLivePhotoViewDelegate {
     }()
     @available(iOS 9.1, *)
     lazy var livePhotoView: PHLivePhotoView = {
-        let livePhotoView = PHLivePhotoView.init()
+        let livePhotoView = PHLivePhotoView()
         livePhotoView.delegate = self
         return livePhotoView
     }()
@@ -54,14 +58,17 @@ open class PhotoPreviewContentView: UIView, PHLivePhotoViewDelegate {
         return videoView
     }()
     
+    var livePhotoIsAnimating: Bool = false
+    
     var isBacking: Bool = false
     var isPeek = false
     
-    var type: Type = .photo
+    var type: `Type` = .photo
     var requestID: PHImageRequestID?
     var requestCompletion: Bool = false
     var requestNetworkCompletion: Bool = false
     var networkVideoLoading: Bool = false
+    var localLivePhotoRequest: PhotoAsset.LocalLivePhotoRequest?
     var imageTask: Any?
     var videoPlayType: PhotoPreviewViewController.PlayType = .normal {
         didSet {
@@ -72,12 +79,12 @@ open class PhotoPreviewContentView: UIView, PHLivePhotoViewDelegate {
     }
     var livePhotoPlayType: PhotoPreviewViewController.PlayType = .once
     var currentLoadAssetLocalIdentifier: String?
-    var photoAsset: PhotoAsset! {
+    public var photoAsset: PhotoAsset! {
         didSet {
             requestFailed(info: [PHImageCancelledKey: 1], isICloud: false)
             setAnimatedImageCompletion = false
             switch photoAsset.mediaSubType {
-            case .livePhoto:
+            case .livePhoto, .localLivePhoto:
                 if #available(iOS 9.1, *) {
                     livePhotoView.livePhoto = nil
                 }
@@ -108,6 +115,145 @@ open class PhotoPreviewContentView: UIView, PHLivePhotoViewDelegate {
             })
         }
     }
+    
+    func updateContentSize(image: UIImage) {
+        updateContentSize(image.size)
+    }
+    
+    func updateContentSize(_ size: CGSize) {
+        if height == 0 || width == 0 {
+            delegate?.contentView(updateContentSize: self)
+            return
+        }
+        let needUpdate = (width / height) != (size.width / size.height)
+        if needUpdate {
+            delegate?.contentView(updateContentSize: self)
+        }
+    }
+    
+    var loadingView: ProgressHUD?
+    
+    var setAnimatedImageCompletion: Bool = false
+    
+    init(type: `Type`) {
+        super.init(frame: CGRect.zero)
+        self.type = type
+        addSubview(imageView)
+        if type == .livePhoto {
+            if #available(iOS 9.1, *) {
+                addSubview(livePhotoView)
+            }
+        }else if type == .video {
+            addSubview(videoView)
+        }
+    }
+    
+    func hudSuperview() -> UIView? {
+        if !isPeek {
+            if let view = superview?.superview {
+                return view
+            }
+        }
+        return self
+    }
+    func showLoadingView(text: String?) {
+        loadingView = ProgressHUD.showProgress(
+            addedTo: hudSuperview(),
+            text: text?.localized,
+            animated: true
+        )
+    }
+    
+    func stopVideo() {
+        if photoAsset.mediaType == .video {
+            if photoAsset.isNetworkAsset && !requestNetworkCompletion {
+                cancelRequest()
+                requestFailed(info: [PHImageCancelledKey: 1], isICloud: false)
+            }else {
+                videoView.stopPlay()
+            }
+        }
+    }
+    func showOtherSubview() {
+        if photoAsset.mediaType == .video {
+            if photoAsset.isNetworkAsset {
+                if requestNetworkCompletion {
+                    videoView.showPlayButton()
+                }else {
+                    videoView.showMaskView()
+                }
+            }else {
+                videoView.showPlayButton()
+            }
+        }
+        if photoAsset.mediaSubType == .livePhoto ||
+            photoAsset.mediaSubType == .localLivePhoto {
+            delegate?.contentView(livePhotoDidEndPlayback: self)
+        }
+        if !requestNetworkCompletion {
+            loadingView?.isHidden = false
+        }
+    }
+    func hiddenOtherSubview() {
+        if photoAsset.mediaType == .video {
+            if photoAsset.isNetworkAsset {
+                if requestNetworkCompletion {
+                    videoView.hiddenPlayButton()
+                }else {
+                    videoView.hiddenMaskView()
+                }
+            }else {
+                videoView.hiddenPlayButton()
+            }
+        }
+        if photoAsset.mediaSubType == .livePhoto ||
+            photoAsset.mediaSubType == .localLivePhoto {
+            delegate?.contentView(livePhotoWillBeginPlayback: self)
+        }
+        if requestNetworkCompletion {
+            loadingView = nil
+            ProgressHUD.hide(forView: hudSuperview(), animated: false)
+        }else {
+            loadingView?.isHidden = true
+        }
+    }
+    func startAnimatedImage() {
+        if photoAsset.mediaSubType.isGif {
+            imageView.startAnimatedImage()
+        }
+    }
+    func stopAnimatedImage() {
+        if photoAsset.mediaSubType.isGif {
+            imageView.stopAnimatedImage()
+        }
+    }
+    
+    open override func layoutSubviews() {
+        super.layoutSubviews()
+        imageView.frame = bounds
+        if type == .livePhoto {
+            if #available(iOS 9.1, *) {
+                livePhotoView.frame = bounds
+            }
+        }else if type == .video {
+            videoView.frame = bounds
+        }
+    }
+    deinit {
+        cancelRequest()
+        
+//        if photoAsset.isNetworkAsset && photoAsset.mediaType == .video {
+//            print("deinit \(self)")
+//        }
+    }
+    required public init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
+}
+
+// MARK: Request Network
+extension PhotoPreviewContentView {
     
     func requestNetworkImage() {
         requestCompletion = true
@@ -159,18 +305,6 @@ open class PhotoPreviewContentView: UIView, PHLivePhotoViewDelegate {
         }
         #endif
     }
-    func updateContentSize(image: UIImage) {
-        let needUpdate = width / height != image.width / image.height
-        if needUpdate {
-            delegate?.contentView(updateContentSize: self)
-        }
-    }
-    func checkNetworkVideoFileSize(_ url: URL) {
-        if let fileSize = photoAsset.networkVideoAsset?.fileSize,
-           fileSize == 0 {
-            photoAsset.networkVideoAsset?.fileSize = url.fileSize
-        }
-    }
     func requestNetworkVideo() {
         if requestNetworkCompletion || networkVideoLoading {
             return
@@ -188,10 +322,12 @@ open class PhotoPreviewContentView: UIView, PHLivePhotoViewDelegate {
                 let url = PhotoTools.getVideoCacheURL(for: key)
                 checkNetworkVideoFileSize(url)
                 networkVideoRequestCompletion(url)
-                delegate?.contentView(updateContentSize: self)
                 return
             }
-            if PhotoManager.shared.loadNetworkVideoMode == .play {
+            
+            if PhotoManager.shared.loadNetworkVideoMode == .play ||
+                videoURL.path.hasSuffix("m3u8")
+                || videoURL.path.hasSuffix("M3U8") {
                 videoView.isNetwork = true
                 networkVideoRequestCompletion(videoURL)
                 return
@@ -213,6 +349,8 @@ open class PhotoPreviewContentView: UIView, PHLivePhotoViewDelegate {
                 if let url = url {
                     if let videoAsset = self.photoAsset.networkVideoAsset,
                        videoAsset.videoSize.equalTo(.zero) {
+                        let image = PhotoTools.getVideoThumbnailImage(videoURL: url, atTime: 0.1)
+                        self.photoAsset.networkVideoAsset?.videoSize = image?.size ?? .zero
                         self.delegate?.contentView(updateContentSize: self)
                     }
                     self.checkNetworkVideoFileSize(url)
@@ -226,6 +364,13 @@ open class PhotoPreviewContentView: UIView, PHLivePhotoViewDelegate {
                     }
                 }
             }
+        }
+    }
+    
+    func checkNetworkVideoFileSize(_ url: URL) {
+        if let fileSize = photoAsset.networkVideoAsset?.fileSize,
+           fileSize == 0 {
+            photoAsset.networkVideoAsset?.fileSize = url.fileSize
         }
     }
     
@@ -246,23 +391,10 @@ open class PhotoPreviewContentView: UIView, PHLivePhotoViewDelegate {
             self.videoView.alpha = 1
         }
     }
-    
-    var loadingView: ProgressHUD?
-    
-    var setAnimatedImageCompletion: Bool = false
-    
-    init(type: Type) {
-        super.init(frame: CGRect.zero)
-        self.type = type
-        addSubview(imageView)
-        if type == .livePhoto {
-            if #available(iOS 9.1, *) {
-                addSubview(livePhotoView)
-            }
-        }else if type == .video {
-            addSubview(videoView)
-        }
-    }
+}
+
+// MARK: Request Asset
+extension PhotoPreviewContentView {
     
     func requestPreviewAsset() {
         switch photoAsset.mediaSubType {
@@ -315,6 +447,10 @@ open class PhotoPreviewContentView: UIView, PHLivePhotoViewDelegate {
             }
             #endif
         }else if type == .livePhoto {
+            if photoAsset.mediaSubType == .localLivePhoto {
+                requestLocalLivePhoto()
+                return
+            }
             if #available(iOS 9.1, *) {
                 if canRequest {
                     requestLivePhoto()
@@ -335,14 +471,14 @@ open class PhotoPreviewContentView: UIView, PHLivePhotoViewDelegate {
         if let photoEdit = photoAsset.photoEdit {
             if photoEdit.imageType == .gif {
                 do {
-                    let imageData = try Data.init(contentsOf: photoEdit.editedImageURL)
+                    let imageData = try Data(contentsOf: photoEdit.editedImageURL)
                     imageView.setImageData(imageData)
                 }catch {
                     imageView.setImage(photoEdit.editedImage, animated: true)
                 }
             }else {
-                if let image = UIImage.init(contentsOfFile: photoEdit.editedImageURL.path) {
-                    imageView.setImage(image)
+                if let image = UIImage(contentsOfFile: photoEdit.editedImageURL.path) {
+                    imageView.setImage(image, animated: true)
                 }else {
                     imageView.setImage(photoEdit.editedImage, animated: true)
                 }
@@ -378,9 +514,28 @@ open class PhotoPreviewContentView: UIView, PHLivePhotoViewDelegate {
                     self.requestCompletion = true
                 }else {
                     DispatchQueue.global().async {
-                        var image = UIImage.init(data: dataResult.imageData)
-                        if dataResult.imageData.count > 3000000 {
-                            image = image?.scaleSuitableSize()
+                        var image: UIImage?
+                        let dataCount = CGFloat(dataResult.imageData.count)
+                        if dataCount > 3000000 {
+                            let compressionQuality: CGFloat
+                            if dataCount > 30000000 {
+                                compressionQuality = 30000000 / dataCount
+                            }else if dataCount > 15000000 {
+                                compressionQuality = 10000000 / dataCount
+                            }else if dataCount > 10000000 {
+                                compressionQuality = 6000000 / dataCount
+                            }else {
+                                compressionQuality = 3000000 / dataCount
+                            }
+                            if let imageData = PhotoTools.imageCompress(
+                                dataResult.imageData,
+                                compressionQuality: compressionQuality
+                            ) {
+                                image = .init(data: imageData)
+                            }
+                        }
+                        if image == nil {
+                            image = UIImage(data: dataResult.imageData)
                         }
                         DispatchQueue.main.async {
                             if asset == self.photoAsset {
@@ -401,7 +556,11 @@ open class PhotoPreviewContentView: UIView, PHLivePhotoViewDelegate {
     func requestLivePhoto() {
         #if HXPICKER_ENABLE_EDITOR
         if let photoEdit = photoAsset.photoEdit {
-            imageView.setImage(photoEdit.editedImage, animated: true)
+            if let image = UIImage(contentsOfFile: photoEdit.editedImageURL.path) {
+                imageView.setImage(image, animated: true)
+            }else {
+                imageView.setImage(photoEdit.editedImage, animated: true)
+            }
             requestCompletion = true
             return
         }
@@ -429,7 +588,7 @@ open class PhotoPreviewContentView: UIView, PHLivePhotoViewDelegate {
                 }
                 if self.livePhotoPlayType == .auto ||
                     self.livePhotoPlayType == .once {
-                    self.livePhotoView.startPlayback(with: PHLivePhotoViewPlaybackStyle.full)
+                    self.livePhotoView.startPlayback(with: .full)
                 }
                 self.requestID = nil
                 self.requestCompletion = true
@@ -438,6 +597,46 @@ open class PhotoPreviewContentView: UIView, PHLivePhotoViewDelegate {
             guard let self = self else { return }
             if asset == self.photoAsset {
                 self.requestFailed(info: info, isICloud: true)
+            }
+        })
+    }
+    func requestLocalLivePhoto() {
+        #if HXPICKER_ENABLE_EDITOR
+        if let photoEdit = photoAsset.photoEdit {
+            if let image = UIImage(contentsOfFile: photoEdit.editedImageURL.path) {
+                imageView.setImage(image, animated: true)
+            }else {
+                imageView.setImage(photoEdit.editedImage, animated: true)
+            }
+            requestCompletion = true
+            return
+        }
+        #endif
+        loadingView = ProgressHUD.showLoading(addedTo: hudSuperview(), animated: true)
+        localLivePhotoRequest = photoAsset.requestLocalLivePhoto(success: { [weak self] photoAsset, livePhoto in
+            guard let self = self else { return }
+            if photoAsset == self.photoAsset {
+                self.requestSucceed()
+                self.livePhotoView.livePhoto = livePhoto
+                UIView.animate(withDuration: 0.25) {
+                    self.livePhotoView.alpha = 1
+                }
+                if self.livePhotoPlayType == .auto ||
+                    self.livePhotoPlayType == .once {
+                    self.livePhotoView.startPlayback(with: .full)
+                }
+                self.localLivePhotoRequest = nil
+                self.requestCompletion = true
+            }
+        }, failure: { [weak self] (asset, info, error) in
+            guard let self = self else { return }
+            if asset == self.photoAsset {
+                self.localLivePhotoRequest = nil
+                self.requestFailed(
+                    info: info ?? [PHImageCancelledKey: 0],
+                    isICloud: false,
+                    showWarning: false
+                )
             }
         })
     }
@@ -482,21 +681,6 @@ open class PhotoPreviewContentView: UIView, PHLivePhotoViewDelegate {
     func requestUpdateProgress(progress: Double, isICloud: Bool) {
         loadingView?.progress = CGFloat(progress)
     }
-    func hudSuperview() -> UIView? {
-        if !isPeek {
-            if let view = superview?.superview {
-                return view
-            }
-        }
-        return self
-    }
-    func showLoadingView(text: String?) {
-        loadingView = ProgressHUD.showProgress(
-            addedTo: hudSuperview(),
-            text: text?.localized,
-            animated: true
-        )
-    }
     func resetLoadingState() {
         UIApplication.shared.isNetworkActivityIndicatorVisible = false
         currentLoadAssetLocalIdentifier = nil
@@ -507,14 +691,20 @@ open class PhotoPreviewContentView: UIView, PHLivePhotoViewDelegate {
         ProgressHUD.hide(forView: hudSuperview(), animated: true)
         delegate?.contentView(requestSucceed: self)
     }
-    func requestFailed(info: [AnyHashable: Any]?, isICloud: Bool) {
+    func requestFailed(
+        info: [AnyHashable: Any]?,
+        isICloud: Bool,
+        showWarning: Bool = true
+    ) {
         loadingView?.removeFromSuperview()
         resetLoadingState()
         if let info = info, !info.isCancel {
             delegate?.contentView(requestFailed: self)
-            let text = (info.inICloud && isICloud) ? "iCloud同步失败".localized : "下载失败".localized
             ProgressHUD.hide(forView: hudSuperview(), animated: false)
-            ProgressHUD.showWarning(addedTo: hudSuperview(), text: text.localized, animated: true, delayHide: 2)
+            if showWarning {
+                let text = (info.inICloud && isICloud) ? "iCloud同步失败".localized : "下载失败".localized
+                ProgressHUD.showWarning(addedTo: hudSuperview(), text: text.localized, animated: true, delayHide: 2)
+            }
         }
     }
     func cancelImageTask() {
@@ -537,6 +727,10 @@ open class PhotoPreviewContentView: UIView, PHLivePhotoViewDelegate {
     func cancelRequest() {
         guard let photoAsset = photoAsset else { return }
         cancelImageTask()
+        if let localLivePhotoRequest = localLivePhotoRequest {
+            localLivePhotoRequest.cancelRequest()
+            self.localLivePhotoRequest = nil
+        }
         if !isPeek {
             photoAsset.playerTime = 0
         }
@@ -573,90 +767,25 @@ open class PhotoPreviewContentView: UIView, PHLivePhotoViewDelegate {
         }
         requestCompletion = false
     }
-    func stopVideo() {
-        if photoAsset.mediaType == .video {
-            if photoAsset.isNetworkAsset && !requestNetworkCompletion {
-                cancelRequest()
-                requestFailed(info: [PHImageCancelledKey: 1], isICloud: false)
-            }else {
-                videoView.stopPlay()
-            }
-        }
-    }
-    func showOtherSubview() {
-        if photoAsset.mediaType == .video {
-            if photoAsset.isNetworkAsset {
-                if requestNetworkCompletion {
-                    videoView.showPlayButton()
-                }else {
-                    videoView.showMaskView()
-                }
-            }else {
-                videoView.showPlayButton()
-            }
-        }
-        if !requestNetworkCompletion {
-            loadingView?.isHidden = false
-        }
-    }
-    func hiddenOtherSubview() {
-        if photoAsset.mediaType == .video {
-            if photoAsset.isNetworkAsset {
-                if requestNetworkCompletion {
-                    videoView.hiddenPlayButton()
-                }else {
-                    videoView.hiddenMaskView()
-                }
-            }else {
-                videoView.hiddenPlayButton()
-            }
-        }
-        if requestNetworkCompletion {
-            loadingView = nil
-            ProgressHUD.hide(forView: hudSuperview(), animated: false)
-        }else {
-            loadingView?.isHidden = true
-        }
-    }
-    func startAnimatedImage() {
-        if photoAsset.mediaSubType.isGif {
-            imageView.startAnimatedImage()
-        }
-    }
-    func stopAnimatedImage() {
-        if photoAsset.mediaSubType.isGif {
-            imageView.stopAnimatedImage()
-        }
+}
+
+// MARK: PHLivePhotoViewDelegate
+extension PhotoPreviewContentView: PHLivePhotoViewDelegate {
+    public func livePhotoView(
+        _ livePhotoView: PHLivePhotoView,
+        willBeginPlaybackWith playbackStyle: PHLivePhotoViewPlaybackStyle
+    ) {
+        livePhotoIsAnimating = true
+        delegate?.contentView(livePhotoWillBeginPlayback: self)
     }
     public func livePhotoView(
         _ livePhotoView: PHLivePhotoView,
         didEndPlaybackWith playbackStyle: PHLivePhotoViewPlaybackStyle
     ) {
+        livePhotoIsAnimating = false
+        delegate?.contentView(livePhotoDidEndPlayback: self)
         if livePhotoPlayType == .auto {
             livePhotoView.startPlayback(with: .full)
         }
     }
-    
-    open override func layoutSubviews() {
-        super.layoutSubviews()
-        imageView.frame = bounds
-        if type == .livePhoto {
-            if #available(iOS 9.1, *) {
-                livePhotoView.frame = bounds
-            }
-        }else if type == .video {
-            videoView.frame = bounds
-        }
-    }
-    deinit {
-        cancelRequest()
-        
-//        if photoAsset.isNetworkAsset && photoAsset.mediaType == .video {
-//            print("deinit \(self)")
-//        }
-    }
-    required public init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
-    
 }

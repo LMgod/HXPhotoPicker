@@ -67,6 +67,7 @@ open class PhotoThumbnailView: UIView {
     
     private var _image: UIImage?
     private var firstLoadImage: Bool = true
+    private var completeLoading: Bool = false
     
     var fadeImage: Bool = false
     var loadCompletion: Bool = false
@@ -89,10 +90,7 @@ open class PhotoThumbnailView: UIView {
     required public init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-}
-
-// MARK: request
-extension PhotoThumbnailView {
+    
     /// 获取图片，重写此方法可以修改图片
     open func requestThumbnailImage(
         targetWidth: CGFloat,
@@ -123,7 +121,7 @@ extension PhotoThumbnailView {
                     if image != nil {
                         self.downloadStatus = .succeed
                     }else {
-                        if error!.isTaskCancelled {
+                        if let error = error, error.isTaskCancelled {
                             self.downloadStatus = .canceled
                         }else {
                             self.downloadStatus = .failed
@@ -153,18 +151,27 @@ extension PhotoThumbnailView {
             }
             #endif
         }else {
+            let thumbnailLoadMode = PhotoManager.shared.thumbnailLoadMode
+            if thumbnailLoadMode == .complete {
+                completeLoading = true
+            }
             requestID = photoAsset.requestThumbnailImage(
-                targetWidth: PhotoManager.shared.thumbnailLoadMode == .simplify ? 10 : targetWidth
+                targetWidth: thumbnailLoadMode == .simplify ? 10 : targetWidth
             ) { [weak self] (image, photoAsset, info) in
                 guard let self = self else { return }
                 if let info = info, info.isCancel { return }
-                if let image = image, self.photoAsset == photoAsset {
-                    self.requestCompletion(image)
-                    if !AssetManager.assetIsDegraded(for: info) {
-                        self.requestID = nil
-                        if PhotoManager.shared.thumbnailLoadMode == .complete {
-                            self.loadCompletion = true
+                if self.photoAsset == photoAsset {
+                    if let image = image {
+                        self.requestCompletion(image)
+                        if !AssetManager.assetIsDegraded(for: info) {
+                            self.requestID = nil
+                            if PhotoManager.shared.thumbnailLoadMode == .complete {
+                                self.loadCompletion = true
+                            }
                         }
+                    }
+                    if PhotoManager.shared.thumbnailLoadMode == .complete {
+                        self.completeLoading = false
                     }
                 }
                 completion?(image, photoAsset)
@@ -173,6 +180,9 @@ extension PhotoThumbnailView {
     }
     /// 取消请求资源图片
     public func cancelRequest() {
+        if completeLoading {
+            completeLoading = false
+        }
         if let requestID = requestID {
             PHImageManager.default().cancelImageRequest(requestID)
             self.requestID = nil
@@ -214,6 +224,7 @@ extension PhotoThumbnailView {
 
 extension PhotoThumbnailView {
     func reloadImage() {
+        if completeLoading { return }
         if !loadCompletion {
             _image = nil
             firstLoadImage = true

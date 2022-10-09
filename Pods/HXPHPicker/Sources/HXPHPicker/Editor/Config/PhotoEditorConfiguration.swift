@@ -10,8 +10,16 @@ import UIKit
 /// 旋转会重置所有编辑效果
 open class PhotoEditorConfiguration: EditorConfiguration {
     
+    /// 编辑之后的图片地址配置，默认在tmp下
+    /// 每次编辑时请设置不同地址，防止之前存在的数据被覆盖
+    /// 如果编辑的是GIF，请设置gif后缀的地址
+    public var imageURLConfig: EditorURLConfig?
+    
     /// 控制画笔、贴图...导出之后清晰程度
     public var scale: CGFloat = 2
+    
+    /// 返回按钮图标
+    public var backButtonImageName: String = "hx_editor_back"
     
     /// 编辑器默认状态
     public var state: PhotoEditorViewController.State = .normal
@@ -68,6 +76,9 @@ open class PhotoEditorConfiguration: EditorConfiguration {
     
     /// 马赛克配置
     public lazy var mosaic: Mosaic = .init()
+}
+
+extension PhotoEditorConfiguration {
     
     public struct Mosaic {
         /// 生成马赛克的大小
@@ -78,19 +89,5 @@ open class PhotoEditorConfiguration: EditorConfiguration {
         public var smearWidth: CGFloat = 30
         
         public init() { }
-    }
-    
-    public struct Filter {
-        /// 滤镜信息
-        public var infos: [PhotoEditorFilterInfo]
-        /// 滤镜选中颜色
-        public var selectedColor: UIColor
-        public init(
-            infos: [PhotoEditorFilterInfo] = [],
-            selectedColor: UIColor = .systemTintColor
-        ) {
-            self.infos = infos
-            self.selectedColor = selectedColor
-        }
     }
 }

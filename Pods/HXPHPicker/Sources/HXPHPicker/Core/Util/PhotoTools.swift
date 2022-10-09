@@ -367,18 +367,54 @@ public struct PhotoTools {
         return 0
     }
     
+    static func imageCompress(
+        _ data: Data,
+        compressionQuality: CGFloat
+    ) -> Data? {
+        guard var resultImage = UIImage(data: data) else {
+            return nil
+        }
+        let compression = max(0.1, min(0.9, compressionQuality))
+        let maxLength = Int(CGFloat(data.count) * compression)
+        var data = data
+        
+        var lastDataLength = 0
+        while data.count > maxLength && data.count != lastDataLength {
+            let dataCount = data.count
+            lastDataLength = dataCount
+            let ratio = max(CGFloat(maxLength) / CGFloat(dataCount), compression)
+            let size = CGSize(
+                width: Int(resultImage.width * ratio),
+                height: Int(resultImage.height * ratio)
+            )
+            UIGraphicsBeginImageContext(size)
+            resultImage.draw(in: CGRect(origin: .zero, size: size))
+            guard let image = UIGraphicsGetImageFromCurrentImageContext(),
+                  let imagedata = image.jpegData(compressionQuality: 1)
+            else {
+                UIGraphicsEndImageContext()
+                return data
+            }
+            UIGraphicsEndImageContext()
+            resultImage = image
+            data = imagedata
+        }
+        return data
+    }
+    
     static func getBasicAnimation(
         _ keyPath: String,
         _ fromValue: Any?,
         _ toValue: Any?,
-        _ duration: TimeInterval
+        _ duration: TimeInterval,
+        _ timingFunctionName: CAMediaTimingFunctionName = .linear
     ) -> CABasicAnimation {
-        let animation = CABasicAnimation.init(keyPath: keyPath)
+        let animation = CABasicAnimation(keyPath: keyPath)
         animation.fromValue = fromValue
         animation.toValue = toValue
         animation.duration = duration
         animation.fillMode = .backwards
-        animation.timingFunction = .init(name: CAMediaTimingFunctionName.linear)
+        animation.timingFunction = .init(name: timingFunctionName)
         return animation
     }
     
@@ -402,6 +438,20 @@ public struct PhotoTools {
         layer.borderWidth = 0.0
         return layer
     }
+    
+    #if HXPICKER_ENABLE_EDITOR || HXPICKER_ENABLE_CAMERA
+    static func getColor(red: Int, green: Int, blue: Int, alpha: Int = 255) -> CIColor {
+        return CIColor(red: CGFloat(Double(red) / 255.0),
+                       green: CGFloat(Double(green) / 255.0),
+                       blue: CGFloat(Double(blue) / 255.0),
+                       alpha: CGFloat(Double(alpha) / 255.0))
+    }
+    
+    static func getColorImage(red: Int, green: Int, blue: Int, alpha: Int = 255, rect: CGRect) -> CIImage {
+        let color = self.getColor(red: red, green: green, blue: blue, alpha: alpha)
+        return CIImage(color: color).cropped(to: rect)
+    }
+    #endif
     
     private init() { }
 }

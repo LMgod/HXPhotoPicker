@@ -112,7 +112,7 @@ class PickerInteractiveTransition: UIPercentDrivenInteractiveTransition, UIGestu
                 }
             }
         }else {
-            let previewVC = pickerController?.previewViewController()
+            let previewVC = pickerController?.previewViewController
             if pickerController?.topViewController != previewVC {
                 return (false, isTracking)
             }
@@ -348,7 +348,8 @@ class PickerInteractiveTransition: UIPercentDrivenInteractiveTransition, UIGestu
         }
     }
     func interPercentDidFinish() {
-        if let previewViewController = previewViewController, let previewView = previewView {
+        if let previewViewController = previewViewController,
+            let previewView = previewView {
             panGestureRecognizer.isEnabled = false
             var toRect = toView?.convert(toView?.bounds ?? .zero, to: transitionContext?.containerView) ?? .zero
             if type == .dismiss, let pickerController = pickerController {
@@ -490,12 +491,19 @@ class PickerInteractiveTransition: UIPercentDrivenInteractiveTransition, UIGestu
         pickerViewController.view.insertSubview(backgroundView, at: 1)
         if !previewViewController.previewAssets.isEmpty {
             let photoAsset = previewViewController.previewAssets[previewViewController.currentPreviewIndex]
+            pickerViewController.setCellLoadMode(.complete)
             if let pickerCell = pickerViewController.getCell(for: photoAsset) {
                 pickerViewController.scrollCellToVisibleArea(pickerCell)
+                DispatchQueue.main.async {
+                    pickerViewController.cellReloadImage()
+                }
                 toView = pickerCell
             }else {
                 pickerViewController.scrollToCenter(for: photoAsset)
                 pickerViewController.reloadCell(for: photoAsset)
+                DispatchQueue.main.async {
+                    pickerViewController.cellReloadImage()
+                }
                 let pickerCell = pickerViewController.getCell(for: photoAsset)
                 toView = pickerCell
             }
@@ -563,7 +571,7 @@ class PickerInteractiveTransition: UIPercentDrivenInteractiveTransition, UIGestu
         let pickerController = transitionContext.viewController(forKey: .from) as! PhotoPickerController
         pickerControllerBackgroundColor = pickerController.view.backgroundColor
         pickerController.view.backgroundColor = .clear
-        if let previewViewController = pickerController.previewViewController() {
+        if let previewViewController = pickerController.previewViewController {
             self.previewViewController = previewViewController
             previewBackgroundColor = previewViewController.view.backgroundColor
             previewViewController.view.backgroundColor = .clear
@@ -597,7 +605,13 @@ class PickerInteractiveTransition: UIPercentDrivenInteractiveTransition, UIGestu
             previewViewController.collectionView.isScrollEnabled = false
             previewView?.scrollView.isScrollEnabled = false
             previewView?.scrollView.pinchGestureRecognizer?.isEnabled = false
-            toView?.isHidden = true
+            if let photoBrowser = pickerController as? PhotoBrowser {
+                if photoBrowser.hideSourceView {
+                    toView?.isHidden = true
+                }
+            }else {
+                toView?.isHidden = true
+            }
             beganInterPercent = true
         }
     }

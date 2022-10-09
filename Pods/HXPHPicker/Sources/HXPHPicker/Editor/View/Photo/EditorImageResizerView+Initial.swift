@@ -55,7 +55,11 @@ extension EditorImageResizerView {
     }
     func setImage(_ image: UIImage) {
         updateContentInsets()
-        imageScale = image.width / image.height
+        if image.size.equalTo(.zero) {
+            imageScale = 1
+        }else {
+            imageScale = image.width / image.height
+        }
         imageView.setImage(image)
         configAspectRatio()
         updateScrollView()
@@ -267,7 +271,9 @@ extension EditorImageResizerView {
         scrollView.frame = containerView.bounds
     }
     
-    func getEditedData() -> PhotoEditData {
+    func getEditedData(
+        _ filterImageURL: URL?
+    ) -> PhotoEditData {
         let brushData = imageView.drawView.getBrushData()
         let rect = maskBgView.convert(controlView.frame, to: imageView)
         
@@ -276,6 +282,7 @@ extension EditorImageResizerView {
         if canReset() {
             cropData = .init(
                 cropSize: cropSize,
+                isRoundCrop: layer.cornerRadius > 0 ? cropConfig.isRoundCrop : false,
                 zoomScale: oldZoomScale,
                 contentInset: oldContentInset,
                 offsetScale: offsetScale,
@@ -293,8 +300,8 @@ extension EditorImageResizerView {
             isPortrait: UIDevice.isPortrait,
             cropData: cropData,
             brushData: brushData,
-            filter: filter,
-            filterValue: filterValue,
+            hasFilter: hasFilter,
+            filterImageURL: filterImageURL,
             mosaicData: mosaicData,
             stickerData: stickerData
         )
@@ -310,6 +317,7 @@ extension EditorImageResizerView {
         if canReset() {
             cropData = .init(
                 cropSize: cropSize,
+                isRoundCrop: layer.cornerRadius > 0 ? cropConfig.isRoundCrop : false,
                 zoomScale: oldZoomScale,
                 contentInset: oldContentInset,
                 offsetScale: offsetScale,
@@ -326,7 +334,8 @@ extension EditorImageResizerView {
             isPortrait: UIDevice.isPortrait,
             cropData: cropData,
             brushData: brushData,
-            stickerData: stickerData
+            stickerData: stickerData,
+            filter: videoFilter
         )
     }
 }

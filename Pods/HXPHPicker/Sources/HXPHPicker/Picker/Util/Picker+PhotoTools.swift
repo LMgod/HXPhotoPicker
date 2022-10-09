@@ -280,14 +280,19 @@ extension PhotoTools {
     }
     
     /// 获取和微信主题一致的配置
-    public static func getWXPickerConfig(isMoment: Bool = false) -> PickerConfiguration {
-        let config = PickerConfiguration.init()
+    // swiftlint:disable function_body_length
+    public static func getWXPickerConfig(
+        isMoment: Bool = false
+    ) -> PickerConfiguration {
+        // swiftlint:enable function_body_length
+        let config = PickerConfiguration()
+        PhotoManager.shared.createLanguageBundle(languageType: config.languageType)
         if isMoment {
             config.maximumSelectedCount = 9
             config.maximumSelectedVideoCount = 1
             config.videoSelectionTapAction = .openEditor
             config.allowSelectedTogether = false
-            config.maximumSelectedVideoDuration = 15
+            config.maximumSelectedVideoDuration = 60
         }else {
             config.maximumSelectedVideoDuration = 480
             config.maximumSelectedCount = 9
@@ -365,9 +370,10 @@ extension PhotoTools {
         config.previewView.backgroundColor = .black
         config.previewView.selectBox.tickColor = .white
         config.previewView.selectBox.selectedBackgroundColor = wxColor
-        
+        config.previewView.livePhotoMark.blurStyle = .dark
+        config.previewView.livePhotoMark.textColor = "#ffffff".color
+        config.previewView.livePhotoMark.imageColor = "#ffffff".color
         config.previewView.bottomView.barStyle = .black
-        
         config.previewView.bottomView.originalButtonTitleColor = .white
         config.previewView.bottomView.originalSelectBox.backgroundColor = .clear
         config.previewView.bottomView.originalSelectBox.borderColor = .white
@@ -380,19 +386,25 @@ extension PhotoTools {
         config.previewView.bottomView.finishButtonDisableBackgroundColor = "#666666".color.withAlphaComponent(0.3)
         
         config.previewView.bottomView.selectedViewTickColor = wxColor
+        config.previewView.disableFinishButtonWhenNotSelected = true
         
         #if HXPICKER_ENABLE_EDITOR
         config.previewView.bottomView.editButtonTitleColor = .white
         
-        config.videoEditor.cropping.maximumVideoCroppingTime = 15
-        config.videoEditor.cropView.finishButtonBackgroundColor = wxColor
-        config.videoEditor.cropView.finishButtonDarkBackgroundColor = wxColor
+        config.videoEditor.cropTime.maximumVideoCroppingTime = 60
+        config.videoEditor.cropSize.aspectRatioSelectedColor = wxColor
+        config.videoEditor.cropConfirmView.finishButtonBackgroundColor = wxColor
+        config.videoEditor.cropConfirmView.finishButtonDarkBackgroundColor = wxColor
         config.videoEditor.toolView.finishButtonBackgroundColor = wxColor
         config.videoEditor.toolView.finishButtonDarkBackgroundColor = wxColor
         config.videoEditor.toolView.toolSelectedColor = wxColor
         config.videoEditor.toolView.musicSelectedColor = wxColor
         config.videoEditor.music.tintColor = wxColor
         config.videoEditor.text.tintColor = wxColor
+        config.videoEditor.filter = .init(
+            infos: defaultVideoFilters(),
+            selectedColor: wxColor
+        )
         
         config.photoEditor.toolView.toolSelectedColor = wxColor
         config.photoEditor.toolView.finishButtonBackgroundColor = wxColor
@@ -409,8 +421,9 @@ extension PhotoTools {
         
         #if HXPICKER_ENABLE_CAMERA
         let cameraConfig = CameraConfiguration()
-        cameraConfig.videoMaximumDuration = 15
+        cameraConfig.videoMaximumDuration = 60
         cameraConfig.tintColor = wxColor
+        cameraConfig.modalPresentationStyle = .fullScreen
         config.photoList.cameraType = .custom(cameraConfig)
         #endif
         

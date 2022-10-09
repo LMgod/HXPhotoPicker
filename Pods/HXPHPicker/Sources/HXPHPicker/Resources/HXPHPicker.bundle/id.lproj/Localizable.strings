@@ -6,10 +6,12 @@
 "相册" = "album Foto";
 "完成" = "bawa";
 "原图" = "Gambar asli";
+"原片" = "Gambar asli";
 "预览" = "Pratinjau";
 "编辑" = "edit";
 "返回" = "kembali";
 "还原" = "pengurangan";
+"自由" = "Gratis";
 "没有可选资源" = "Tidak ada sumber daya opsional";
 "照片和视频不能同时选择" = "Foto dan video tidak dapat dipilih secara bersamaan";
 "最多只能选择%d张照片" = "Anda hanya dapat memilih maksimal %d foto";
@@ -46,6 +48,8 @@
 "图片下载中" = "Pengunduhan gambar";
 "视频下载中" = "Pengunduhan video";
 "设置失败!" = "Penyiapan gagal!";
+"唯美" = "Nashville";
+"梦幻" = "Toaster";
 "老电影" = "film lama";
 "怀旧" = "Nostalgia";
 "黑白" = "Hitam dan putih";
@@ -83,6 +87,13 @@
 "更多" = "Lagi";
 "张照片" = "Foto";
 "个视频" = "Video";
+"实况" = "Hidup";
+"照片" = "Foto";
+"视频" = "video";
+"点击摄像" = "Klik untuk merekam";
+"音量" = "volume";
+"明亮" = "lampu";
+"删除" = "menghapus";
 
 "HXAlbumCameraRoll" = "Semua foto";
 "HXAlbumPanoramas" = "gambar panorama";

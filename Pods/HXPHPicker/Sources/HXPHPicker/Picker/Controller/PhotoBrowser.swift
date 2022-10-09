@@ -24,6 +24,8 @@ open class PhotoBrowser: PhotoPickerController {
         public var backgroundColor: UIColor = .black
         /// 显示删除按钮
         public var showDelete: Bool = false
+        /// 转场动画过程中是否隐藏原视图
+        public var hideSourceView: Bool = true
         /// 跳转样式
         public var modalPresentationStyle: UIModalPresentationStyle = .custom
         
@@ -76,6 +78,7 @@ open class PhotoBrowser: PhotoPickerController {
             config: previewConfig,
             style: browserConfig.modalPresentationStyle,
             showDelete: browserConfig.showDelete,
+            hideSourceView: browserConfig.hideSourceView,
             previewIndex: pageIndex,
             transitionalImage: transitionalImage,
             transitionHandler: transitionHandler,
@@ -93,6 +96,7 @@ open class PhotoBrowser: PhotoPickerController {
         config: PickerConfiguration,
         style: UIModalPresentationStyle,
         showDelete: Bool,
+        hideSourceView: Bool,
         previewIndex: Int,
         transitionalImage: UIImage?,
         transitionHandler: TransitionHandler?,
@@ -103,6 +107,7 @@ open class PhotoBrowser: PhotoPickerController {
         self.transitionHandler = transitionHandler
         self.deleteAssetHandler = deleteAssetHandler
         self.longPressHandler = longPressHandler
+        self.hideSourceView = hideSourceView
         super.init(
             preview: config,
             currentIndex: previewIndex,
@@ -115,9 +120,9 @@ open class PhotoBrowser: PhotoPickerController {
         )
         navigationBar.barTintColor = .clear
         navigationBar.backgroundColor = .clear
-        previewViewController()?.navigationItem.titleView = titleLabel
+        previewViewController?.navigationItem.titleView = titleLabel
         if showDelete {
-            previewViewController()?.navigationItem.rightBarButtonItem = UIBarButtonItem(
+            previewViewController?.navigationItem.rightBarButtonItem = UIBarButtonItem(
                 title: "删除".localized,
                 style: .done,
                 target: self,
@@ -129,6 +134,7 @@ open class PhotoBrowser: PhotoPickerController {
     public typealias TransitionHandler = (Int) -> UIView?
     public typealias AssetHandler = (Int, PhotoAsset, PhotoBrowser) -> Void
     
+    let hideSourceView: Bool
     private let transitionHandler: TransitionHandler?
     private let deleteAssetHandler: AssetHandler?
     private let longPressHandler: AssetHandler?
@@ -160,7 +166,7 @@ open class PhotoBrowser: PhotoPickerController {
     fileprivate var didHidden: Bool = false
     
     @objc func deletePreviewAsset() {
-        guard let preview = previewViewController(),
+        guard let preview = previewViewController,
               !preview.previewAssets.isEmpty else {
             return
         }
@@ -220,9 +226,10 @@ extension PhotoBrowser: PhotoPickerControllerDelegate {
         previewUpdateCurrentlyDisplayedAsset photoAsset: PhotoAsset,
         atIndex: Int
     ) {
-        if let preview = previewViewController() {
-            titleLabel.text = String(atIndex + 1) + "/" + String(preview.previewAssets.count)
+        guard let preview = previewViewController else {
+            return
         }
+        titleLabel.text = String(atIndex + 1) + "/" + String(preview.previewAssets.count)
     }
     
     public func pickerController(

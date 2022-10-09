@@ -66,7 +66,7 @@ extension UIView: HXPickerCompatible {
         }
     }
     
-    func viewController() -> UIViewController? {
+    var viewController: UIViewController? {
         var next = superview
         while next != nil {
             let nextResponder = next?.next
@@ -127,9 +127,8 @@ public extension HXPickerWrapper where Base: UIView {
         get { base.centerY }
         set { base.centerY = newValue }
     }
-    
-    func viewController() -> UIViewController? {
-        base.viewController()
+    var viewController: UIViewController? {
+        base.viewController
     }
     
     func show(
