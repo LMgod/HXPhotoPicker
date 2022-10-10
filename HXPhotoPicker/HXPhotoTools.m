@@ -1103,25 +1103,16 @@ NSString *const hx_kKeyContentIdentifier = @"com.apple.quicktime.content.identif
     
     
 + (CGFloat)getStatusBarHeight {
-    CGFloat statusBarHeight = 0;
-    if (@available(iOS 13.0, *)) {
-        UIStatusBarManager *statusBarManager = [UIApplication sharedApplication].windows.firstObject.windowScene.statusBarManager;
-        statusBarHeight = statusBarManager.statusBarFrame.size.height;
-        if ([HXPhotoTools isIphone12Mini]) {
-            statusBarHeight = 50;
-        }else {
-            if ([UIApplication sharedApplication].statusBarHidden) {
-                statusBarHeight = HX_IS_IPhoneX_All ? 44: 20;
-            }
-        }
+    CGFloat height = 0;
+    if (@available(iOS 11.0, *)) {
+        height = UIApplication.sharedApplication.delegate.window.safeAreaInsets.top;
     }
-    else {
-        if ([UIApplication sharedApplication].statusBarHidden) {
-            statusBarHeight = HX_IS_IPhoneX_All ? 44: 20;
-        }else {
-            statusBarHeight = [UIApplication sharedApplication].statusBarFrame.size.height;
-        }
+    if (height <= 0) {
+        height = UIApplication.sharedApplication.statusBarFrame.size.height;
     }
-    return statusBarHeight;
+    if (height <= 0) {
+        height = 20;
+    }
+    return height;
 }
 @end
